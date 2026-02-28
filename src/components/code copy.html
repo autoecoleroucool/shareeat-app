@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Share Eat - Explore Local Meals</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#49e619",
+                        "background-light": "#F5F5F0",
+                        "background-dark": "#152111",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased">
+<!-- Main Container (Mobile Form Factor) -->
+<div class="relative flex min-h-screen w-full max-w-md mx-auto flex-col bg-background-light dark:bg-background-dark pb-24">
+<!-- Header -->
+<header class="sticky top-0 z-20 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md px-6 pt-12 pb-4">
+<div class="flex items-center justify-between mb-6">
+<div>
+<h1 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Explore</h1>
+<p class="text-sm text-slate-500 dark:text-slate-400">Discover meals near you</p>
+</div>
+<button class="w-12 h-12 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center border border-slate-100 dark:border-slate-700">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">tune</span>
+</button>
+</div>
+<!-- Search Bar -->
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="w-full bg-white dark:bg-slate-800 border-none rounded-xl py-4 pl-12 pr-4 shadow-sm focus:ring-2 focus:ring-primary placeholder:text-slate-400 text-slate-900 dark:text-white" placeholder="Search for dishes, cuisines..." type="text"/>
+</div>
+</header>
+<!-- Category Filters -->
+<div class="flex gap-3 px-6 py-2 overflow-x-auto hide-scrollbar">
+<button class="flex items-center gap-2 px-5 py-2.5 bg-primary text-slate-900 rounded-full text-sm font-semibold whitespace-nowrap shadow-md">
+<span class="material-symbols-outlined text-[18px]">near_me</span> Nearby
+            </button>
+<button class="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full text-sm font-semibold whitespace-nowrap border border-slate-100 dark:border-slate-700">
+<span class="material-symbols-outlined text-[18px]">eco</span> Vegan
+            </button>
+<button class="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full text-sm font-semibold whitespace-nowrap border border-slate-100 dark:border-slate-700">
+<span class="material-symbols-outlined text-[18px]">local_fire_department</span> Spicy
+            </button>
+<button class="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full text-sm font-semibold whitespace-nowrap border border-slate-100 dark:border-slate-700">
+<span class="material-symbols-outlined text-[18px]">icecream</span> Dessert
+            </button>
+</div>
+<!-- Meal List -->
+<main class="flex flex-col gap-6 p-6">
+<!-- Card 1 -->
+<div class="bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none border border-slate-50 dark:border-slate-700/50">
+<div class="relative h-64 w-full">
+<div class="absolute inset-0 bg-center bg-cover" data-alt="A vibrant salad bowl with fresh vegetables and grains" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD0GM6qxQBwXWNgco2BOR2_tmqUDmYsvaTxzJtT4wbjYfN3ud_3ei8NU7IiQF9GsXWAaLVFyeST4zS9jIIe0M91fjmeX1jlneqjRhEQP68i14TgBhdnO7kfE7NwmKs5A22pwwinh3U5koFPTx-yrU_pYL4FSUjh84DninAhwy_NXNq_V4EyvJosvuTNXYcn3pg8QeHBFhVecsKxP6kGwDpOmrhEwKd301uN7vkvevSzKPb4XH3qfs9HfYqVbatKO4UYuz2bZnZ6rdA')"></div>
+<div class="absolute top-4 left-4">
+<span class="bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-slate-900 flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span> 3 spots left
+                        </span>
+</div>
+<div class="absolute top-4 right-4">
+<button class="w-10 h-10 rounded-full bg-white/90 backdrop-blur flex items-center justify-center text-slate-900">
+<span class="material-symbols-outlined">favorite</span>
+</button>
+</div>
+</div>
+<div class="p-5">
+<div class="flex justify-between items-start mb-2">
+<h3 class="text-xl font-bold text-slate-900 dark:text-white leading-tight">Homemade Sourdough &amp; Shakshuka</h3>
+<span class="text-primary font-bold">$12</span>
+</div>
+<div class="flex items-center gap-2 mb-4">
+<div class="w-6 h-6 rounded-full bg-slate-200" data-alt="Portrait of Sarah the host" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDSeTojR-BvZQfPZtYXyvNeTQSdf85MfZ9TVeXlgvHoLRl6TPcuuVVovm9RWy6132rbojJc4y4dMQBGP1lR1sy9Xf3BOV8rnZiu0hZRQ3nK3AP5a4Q47lBIDS50J0j2vHsrgkSqhi3Aa2NmYu15yXRPRYh68R7sI1To502FSTjNfZDO9sRdoe4xMC1ntcG2VWFUoO1dBI0Oi5ol-GRsZMxt8qEzcUlNACqYhxrWOZ_V9BwoUR7e8OPYi6ZaTevN83Oxv3915DOgAHE')"></div>
+<p class="text-sm text-slate-500 dark:text-slate-400">Sarah • 0.5 miles away</p>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Today</span>
+<span class="text-sm font-medium text-slate-700 dark:text-slate-300">6:00 PM — 8:00 PM</span>
+</div>
+<button class="bg-primary hover:opacity-90 transition-opacity text-slate-900 font-bold py-2.5 px-6 rounded-lg text-sm">
+                            Book Spot
+                        </button>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none border border-slate-50 dark:border-slate-700/50">
+<div class="relative h-64 w-full">
+<div class="absolute inset-0 bg-center bg-cover" data-alt="A large authentic wooden tray of Mediterranean mezze" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAzDeQ000xfkGoU4cgaYOF0N1zhf0iSDL7aaaTzLdVo-R6p0kMA7Z2c0ceEYFx7luRXjnQvdMyaWRL1U0sF3Zw8J7ZDDU_BEK51vJc19inRP8fXU4PCA3z9QLZS753cc28LRmXxnMqHnicvR5kkVa6NHz7Fqm-edqUluBvu_ErTDkfFo6_v9JXLoKjLFCBm6p-KPAaOylYZ3Lx_KMOQI8wwu1THNFaq1rF-v4vKun0InfQviOCXptCvqbNSZTz0osfUPkieNezf9SA')"></div>
+<div class="absolute top-4 left-4">
+<span class="bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-slate-900 flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-orange-500"></span> 1 spot left
+                        </span>
+</div>
+<div class="absolute top-4 right-4">
+<button class="w-10 h-10 rounded-full bg-white/90 backdrop-blur flex items-center justify-center text-slate-900">
+<span class="material-symbols-outlined">favorite</span>
+</button>
+</div>
+</div>
+<div class="p-5">
+<div class="flex justify-between items-start mb-2">
+<h3 class="text-xl font-bold text-slate-900 dark:text-white leading-tight">Mediterranean Mezze Platter</h3>
+<span class="text-primary font-bold">$15</span>
+</div>
+<div class="flex items-center gap-2 mb-4">
+<div class="w-6 h-6 rounded-full bg-slate-200" data-alt="Portrait of Marco the host" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuATp5xgl-gTHL_dEOD-25e4lvl5uKpFftEO6zMBmQ_HLI5LnbxSEyO-XRjLa9Nc7UmnfaBB7h3MPG58ms11hr-rEJouDySclHcP1R_jp2e2QYq2FVEomCw97B0sAhduyQTy2BKwMNFV_T9uaierQ2KJRlm_EWfzUi_RUh68w4C_U8Yo_TT4_P0Nl2QRnEBBPAEvIYe2NBERf8n-kyNkeDHWKanLVUT0keR8apR6KssfZ8xh2T-k-giBuTxPxV7QmHDTI06JedZqr8I')"></div>
+<p class="text-sm text-slate-500 dark:text-slate-400">Marco • 1.2 miles away</p>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Tomorrow</span>
+<span class="text-sm font-medium text-slate-700 dark:text-slate-300">7:30 PM — 9:30 PM</span>
+</div>
+<button class="bg-primary hover:opacity-90 transition-opacity text-slate-900 font-bold py-2.5 px-6 rounded-lg text-sm">
+                            Book Spot
+                        </button>
+</div>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-white dark:bg-slate-800 rounded-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none border border-slate-50 dark:border-slate-700/50">
+<div class="relative h-64 w-full">
+<div class="absolute inset-0 bg-center bg-cover" data-alt="Gourmet fusion taco spread on a kitchen counter" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDlX73bpt8SOSi3vUg8L1geKEMzp1GGdoz4IzSY7P3kl2lOJpmq_LOTaJnGmyAcKiDQfiZEpmHZMP_ef5-jGOeQxJF-nhh9eNgr5p9cA6kse2fmkJJBH8j8ELeGD7klrchIqzBB0AzuUAwKLqM3R9WQU-aTWsI3N9QYuiXiu1mfTUtcJjUkh6PWTMdZvoHI_FfhC9Z3Jh5G3N7dcYoAHhsyojMfGS9tFsDUDTy0J3AZiTdrbzok9hcK2Bn6b7JLjibReCTrZqBdAEc')"></div>
+<div class="absolute top-4 left-4">
+<span class="bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-slate-900 flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-primary"></span> 5 spots left
+                        </span>
+</div>
+<div class="absolute top-4 right-4">
+<button class="w-10 h-10 rounded-full bg-white/90 backdrop-blur flex items-center justify-center text-slate-900">
+<span class="material-symbols-outlined">favorite</span>
+</button>
+</div>
+</div>
+<div class="p-5">
+<div class="flex justify-between items-start mb-2">
+<h3 class="text-xl font-bold text-slate-900 dark:text-white leading-tight">Fusion Tacos Night</h3>
+<span class="text-primary font-bold">$10</span>
+</div>
+<div class="flex items-center gap-2 mb-4">
+<div class="w-6 h-6 rounded-full bg-slate-200" data-alt="Portrait of Elena the host" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBBW7p_J4Po8QyFWaIfuhfUIz7QBNAVpMQVCerpQaqz7YNfvDHg5yG43qUe4-D6b9FutEah9tXkrtENflEabjUQSez0u4nzzI6nR6u4z8V6tQGbLfz49ZI9gFGpwUnfx_QMEs65XOGtlQj5aocXe4spHA4dI5p1t9sRlXbnXDSCqqf44v2AS069RvVfUxrgfPZbRViwRSzM2e90OzzId0eg_hDmuDSIaH0g2kKy2mVIHKn7LaLNwQrt5UWjDWGH_ZXY_1WFnnAlN1Q')"></div>
+<p class="text-sm text-slate-500 dark:text-slate-400">Elena • 0.8 miles away</p>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Today</span>
+<span class="text-sm font-medium text-slate-700 dark:text-slate-300">8:00 PM — 10:00 PM</span>
+</div>
+<button class="bg-primary hover:opacity-90 transition-opacity text-slate-900 font-bold py-2.5 px-6 rounded-lg text-sm">
+                            Book Spot
+                        </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button -->
+<button class="fixed right-6 bottom-28 w-14 h-14 bg-slate-900 dark:bg-primary rounded-full shadow-2xl flex items-center justify-center text-primary dark:text-slate-900 z-30 transition-transform active:scale-90">
+<span class="material-symbols-outlined font-bold text-3xl">add</span>
+</button>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-background-dark/90 backdrop-blur-lg border-t border-slate-100 dark:border-slate-800 px-6 pb-8 pt-4">
+<div class="max-w-md mx-auto flex items-center justify-between">
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">map</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Map</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined fill-1">explore</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Explore</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Inbox</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Profile</span>
+</a>
+</div>
+</nav>
+</div>
+</body></html>
