@@ -702,7 +702,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
                     }}>{c.title}</p>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       {c.creator?.avatar_url && (
-                        <img src={c.creator.avatar_url} alt={c.creator.name} style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} />
+                        <img src={c.creator.avatar_url} alt={c.creator.name} loading="lazy" decoding="async" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} />
                       )}
                       <span style={{ fontSize: 10, color: '#7f1d1d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.creator?.name}</span>
                     </div>

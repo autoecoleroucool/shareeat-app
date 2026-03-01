@@ -1726,7 +1726,7 @@ function MyGalleryTab({
               onClick={() => onSelectPhoto(photo)}
               className="aspect-square relative rounded-xl overflow-hidden active:scale-95 transition-all"
             >
-              <img src={photo.image_url} alt={photo.meal_name} className="w-full h-full object-cover" />
+              <img src={photo.image_url} alt={photo.meal_name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
               {photo.challenge_id && (
                 <div className="absolute top-1 right-1 w-5 h-5 bg-amber-500/80 rounded-full flex items-center justify-center">
                   <span className="material-symbols-outlined text-white text-[11px] fill-1">emoji_events</span>
@@ -1917,7 +1917,7 @@ function InvitationDetailSheet({
             {hostPhotos.map((ph, i) => (
               <button key={ph.id} onClick={() => setActiveIdx(i)}
                 className={`shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all ${i === activeIdx ? 'border-amber-400' : 'border-transparent'}`}>
-                <img src={ph.image_url} alt="" className="w-full h-full object-cover" />
+                <img src={ph.image_url} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
               </button>
             ))}
           </div>

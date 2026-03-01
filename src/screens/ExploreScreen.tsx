@@ -117,7 +117,7 @@ export default function ExploreScreen({
     setLoadError(false);
     const { data, error } = await supabase
       .from('meals')
-      .select('*, host:profiles!host_id(id, name, avatar_url, shares_count)')
+      .select('id,title,description,image_url,location_lat,location_lng,location_name,slots_total,slots_taken,meal_type,category,expires_at,quantity,host_id,claimed,diet_tags,created_at,host:profiles!host_id(id, name, avatar_url, shares_count)')
       .or('claimed.eq.false,claimed.is.null')
       .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
       .neq('meal_type', 'culinary_circle')
@@ -424,7 +424,7 @@ export default function ExploreScreen({
                           <p className="text-sm font-bold text-amber-950 leading-tight line-clamp-2 mb-2">{c.title}</p>
                           <div className="flex items-center gap-1.5">
                             {c.creator?.avatar_url && (
-                              <img src={c.creator.avatar_url} alt={c.creator.name} className="w-5 h-5 rounded-full object-cover" />
+                              <img src={c.creator.avatar_url} alt={c.creator.name} className="w-5 h-5 rounded-full object-cover" loading="lazy" decoding="async" />
                             )}
                             <p className="text-[11px] text-amber-800 truncate">{c.creator?.name}</p>
                           </div>
@@ -591,7 +591,7 @@ export default function ExploreScreen({
                         <p className="text-xs text-slate-500 mt-0.5 truncate">{mealWithExtra.quantity}</p>
                       )}
                       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        <img src={hostAvatar} alt={hostName} className="w-5 h-5 rounded-full object-cover" />
+                        <img src={hostAvatar} alt={hostName} className="w-5 h-5 rounded-full object-cover" loading="lazy" decoding="async" />
                         <p className="text-xs text-slate-500">{hostName}</p>
                       </div>
                     </div>
@@ -694,7 +694,7 @@ export default function ExploreScreen({
                 </div>
 
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
-                  <img src={hostAvatar} alt={hostName} className="w-6 h-6 rounded-full object-cover bg-slate-200" />
+                  <img src={hostAvatar} alt={hostName} className="w-6 h-6 rounded-full object-cover bg-slate-200" loading="lazy" decoding="async" />
                   <p className="text-sm text-slate-500">{hostName}</p>
                 </div>
 
