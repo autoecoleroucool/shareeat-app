@@ -122,7 +122,7 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps) {
 
   return (
     <>
-      <div className="flex flex-col h-[100dvh] bg-[#f6f8f6]">
+      <div className="flex flex-col h-app bg-[#f6f8f6]">
         <div className="bg-white px-6 pb-4 flex items-center gap-3 border-b border-slate-100" style={{ paddingTop: 'calc(env(safe-area-inset-top, 44px) + 14px)' }}>
           <button
             onClick={onBack}

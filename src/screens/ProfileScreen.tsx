@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Fragment } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Screen } from '../types';
 import BottomNav from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
@@ -240,7 +240,7 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
     if (mealsResult.data) setSharedMeals(mealsResult.data as SharedMeal[]);
     setMealsLoading(false);
 
-    if (recoveredResult.data) setRecoveredMeals(recoveredResult.data as RecoveredMeal[]);
+    if (recoveredResult.data) setRecoveredMeals(recoveredResult.data as unknown as RecoveredMeal[]);
     setRecoveredLoading(false);
 
     if (hostMealIds.length > 0) {
@@ -251,7 +251,7 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
         .eq('delivered', false)
         .eq('no_show', false)
         .order('joined_at', { ascending: false });
-      if (bookingsData) setPendingBookings(bookingsData as PendingBooking[]);
+      if (bookingsData) setPendingBookings(bookingsData as unknown as PendingBooking[]);
     }
     setPendingLoading(false);
   }, []);
@@ -376,7 +376,7 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#f6f8f6] font-display">
+    <div className="flex flex-col h-app bg-[#f6f8f6] font-display">
       <main ref={(el) => { profileScrollRef.current = el; }} className="flex-1 overflow-y-auto hide-scrollbar pb-24 relative">
         <PullIndicator ref={profileIndicatorRef} />
 
@@ -591,7 +591,7 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
                       <div className="flex items-center gap-3 mb-3">
                         <div className="relative shrink-0">
                           {guest.avatar_url ? (
-                            <img src={guest.avatar_url} alt={guest.name} className="w-10 h-10 rounded-full object-cover" />
+                            <img src={guest.avatar_url} alt={guest.name} className="w-10 h-10 rounded-full object-cover" loading="lazy" decoding="async" />
                           ) : (
                             <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
                               <span className="material-symbols-outlined text-slate-400 text-[20px]">person</span>
@@ -606,6 +606,8 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
                           src={meal.image_url || fallbackImg}
                           alt={meal.title}
                           className="w-12 h-12 rounded-xl object-cover shrink-0"
+                          loading="lazy"
+                          decoding="async"
                         />
                       </div>
                       <div className="flex items-center gap-2 mb-3">
@@ -736,6 +738,8 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
                           src={meal.image_url || fallbackImage}
                           alt={meal.title}
                           className="w-20 h-20 rounded-xl object-cover"
+                          loading="lazy"
+                          decoding="async"
                         />
                         <span
                           className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
@@ -858,6 +862,8 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
                           src={meal.image_url || fallbackImage}
                           alt={meal.title}
                           className="w-20 h-20 rounded-xl object-cover"
+                          loading="lazy"
+                          decoding="async"
                         />
                         <span
                           className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"

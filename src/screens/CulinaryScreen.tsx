@@ -1,14 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { Screen, CulinaryPhoto, CulinaryInvitation, Profile, CulinaryChallenge } from '../types';
+import { getCurrentPosition, reverseGeocode } from '../lib/geolocation';
+import { Screen, CulinaryPhoto, CulinaryInvitation, CulinaryChallenge } from '../types';
 import BottomNav from '../components/BottomNav';
 import ChallengeDetailScreen from '../components/culinary/ChallengeDetailScreen';
+import MemberProfileModal from '../components/culinary/MemberProfileModal';
 
 interface CulinaryScreenProps {
   activeScreen: Screen;
   onNavigate: (screen: Screen) => void;
   unreadBookings?: number;
   onContactMember: (hostId: string, hostName: string, hostAvatar: string) => void;
+  initialTab?: Tab;
+  onInitialTabConsumed?: () => void;
 }
 
 type Tab = 'feed' | 'members' | 'invitations' | 'my_gallery' | 'challenges';
@@ -60,25 +65,31 @@ function formatDateShort(d: string | null) {
   return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
-export default function CulinaryScreen({ activeScreen, onNavigate, unreadBookings = 0, onContactMember }: CulinaryScreenProps) {
+export default function CulinaryScreen({ activeScreen, onNavigate, unreadBookings = 0, onContactMember, initialTab, onInitialTabConsumed }: CulinaryScreenProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('feed');
+  const [tab, setTab] = useState<Tab>(initialTab ?? 'challenges');
 
   const [challenges, setChallenges] = useState<CulinaryChallenge[]>([]);
   const [challengesLoading, setChallengesLoading] = useState(false);
   const [selectedChallenge, setSelectedChallenge] = useState<CulinaryChallenge | null>(null);
+  const [viewProfileUserId, setViewProfileUserId] = useState<string | null>(null);
   const [showCreateChallenge, setShowCreateChallenge] = useState(false);
   const [challengeTitle, setChallengeTitle] = useState('');
   const [challengeDesc, setChallengeDesc] = useState('');
   const [creatingChallenge, setCreatingChallenge] = useState(false);
   const [myPendingChallenges, setMyPendingChallenges] = useState(0);
+  const [acceptedResponsibility, setAcceptedResponsibility] = useState(false);
+  const [challengeError, setChallengeError] = useState<string | null>(null);
 
   const [feedPhotos, setFeedPhotos] = useState<CulinaryPhoto[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<CulinaryPhoto | null>(null);
+  const [hidingPhoto, setHidingPhoto] = useState(false);
 
   const [members, setMembers] = useState<CircleMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [hiddenMemberIds, setHiddenMemberIds] = useState<Set<string>>(new Set());
+  const [showHidden, setShowHidden] = useState(false);
 
   const [invitations, setInvitations] = useState<CulinaryInvitation[]>([]);
   const [invLoading, setInvLoading] = useState(false);
@@ -101,9 +112,12 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [photoMealName, setPhotoMealName] = useState('');
   const [photoCaption, setPhotoCaption] = useState('');
+  const [photoChallengeId, setPhotoChallengeId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [selectedMyPhoto, setSelectedMyPhoto] = useState<CulinaryPhoto | null>(null);
+  const [myAcceptedChallenges, setMyAcceptedChallenges] = useState<{ id: string; title: string }[]>([]);
+  const [feedChallengeFilter, setFeedChallengeFilter] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,31 +127,71 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
     });
   }, []);
 
+  useEffect(() => {
+    if (initialTab) {
+      setTab(initialTab);
+      onInitialTabConsumed?.();
+    }
+  }, [initialTab, onInitialTabConsumed]);
+
   const loadFeed = useCallback(async () => {
     setFeedLoading(true);
-    const { data } = await supabase
-      .from('culinary_circle_photos')
-      .select('*, author:profiles!user_id(id, name, avatar_url)')
-      .order('created_at', { ascending: false })
-      .limit(60);
-    setFeedPhotos((data as CulinaryPhoto[]) ?? []);
+    const { data: { user } } = await supabase.auth.getUser();
+    const uid = user?.id;
+
+    const [photosResult, hiddenResult] = await Promise.all([
+      supabase
+        .from('culinary_circle_photos')
+        .select('*, author:profiles!user_id(id, name, avatar_url), challenge:culinary_challenges(id, title)')
+        .order('created_at', { ascending: false })
+        .limit(100),
+      uid
+        ? supabase.from('culinary_hidden_photos').select('photo_id').eq('user_id', uid)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const hiddenIds = new Set((hiddenResult.data ?? []).map((r: { photo_id: string }) => r.photo_id));
+    const photos = (photosResult.data as CulinaryPhoto[]) ?? [];
+    setFeedPhotos(photos.filter((p) => !hiddenIds.has(p.id)));
     setFeedLoading(false);
   }, []);
+
+  const hidePhoto = useCallback(async (photo: CulinaryPhoto) => {
+    if (!currentUserId || hidingPhoto) return;
+    setHidingPhoto(true);
+    await supabase.from('culinary_hidden_photos').insert({ user_id: currentUserId, photo_id: photo.id });
+    setFeedPhotos((prev) => prev.filter((p) => p.id !== photo.id));
+    setSelectedPhoto(null);
+    setHidingPhoto(false);
+  }, [currentUserId, hidingPhoto]);
 
   const loadMembers = useCallback(async () => {
     if (!currentUserId) return;
     setMembersLoading(true);
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, name, avatar_url, shares_count, rating, location_name')
-      .gte('shares_count', 10)
-      .neq('id', currentUserId)
-      .order('shares_count', { ascending: false })
-      .limit(50);
 
-    if (!profiles?.length) { setMembers([]); setMembersLoading(false); return; }
+    const [profilesResult, hiddenResult] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, name, avatar_url, shares_count, rating, location_name')
+        .gte('shares_count', 10)
+        .neq('id', currentUserId)
+        .order('shares_count', { ascending: false })
+        .limit(100),
+      supabase
+        .from('culinary_circle_hidden_members')
+        .select('hidden_user_id')
+        .eq('user_id', currentUserId),
+    ]);
 
-    const ids = profiles.map((p: Profile) => p.id);
+    const profiles = profilesResult.data ?? [];
+    const hiddenIds = new Set<string>(
+      (hiddenResult.data ?? []).map((r: { hidden_user_id: string }) => r.hidden_user_id)
+    );
+    setHiddenMemberIds(hiddenIds);
+
+    if (!profiles.length) { setMembers([]); setMembersLoading(false); return; }
+
+    const ids = profiles.map((p: { id: string }) => p.id);
     const { data: photos } = await supabase
       .from('culinary_circle_photos')
       .select('*')
@@ -150,8 +204,9 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
       if (photosByUser[ph.user_id].length < 6) photosByUser[ph.user_id].push(ph);
     });
 
+    type PartialProfile = { id: string; name: string; avatar_url: string; shares_count: number; rating: number; location_name?: string };
     setMembers(
-      (profiles as Profile[]).map((p) => ({
+      (profiles as unknown as PartialProfile[]).map((p) => ({
         id: p.id,
         name: p.name,
         avatar_url: p.avatar_url,
@@ -181,11 +236,29 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
     setMyPhotosLoading(true);
     const { data } = await supabase
       .from('culinary_circle_photos')
-      .select('*')
+      .select('*, challenge:culinary_challenges(id, title)')
       .eq('user_id', currentUserId)
       .order('created_at', { ascending: false });
     setMyPhotos((data as CulinaryPhoto[]) ?? []);
     setMyPhotosLoading(false);
+  }, [currentUserId]);
+
+  const loadMyAcceptedChallenges = useCallback(async () => {
+    if (!currentUserId) return;
+    const { data: memberships } = await supabase
+      .from('culinary_challenge_members')
+      .select('challenge_id')
+      .eq('user_id', currentUserId)
+      .eq('status', 'accepted');
+    if (!memberships || memberships.length === 0) { setMyAcceptedChallenges([]); return; }
+    const ids = memberships.map((m: { challenge_id: string }) => m.challenge_id);
+    const { data: challengesList } = await supabase
+      .from('culinary_challenges')
+      .select('id, title')
+      .in('id', ids)
+      .neq('status', 'completed')
+      .order('created_at', { ascending: false });
+    setMyAcceptedChallenges((challengesList ?? []) as { id: string; title: string }[]);
   }, [currentUserId]);
 
   const loadChallenges = useCallback(async () => {
@@ -203,14 +276,17 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
       const ids = list.map((c) => c.id);
       const { data: membersData } = await supabase
         .from('culinary_challenge_members')
-        .select('challenge_id, status')
+        .select('challenge_id, user_id, status, invited_by')
         .in('challenge_id', ids);
 
       const countByChallenge: Record<string, number> = {};
-      const myPending: string[] = [];
-      (membersData ?? []).forEach((m: { challenge_id: string; status: string; user_id?: string }) => {
+      const pendingByChallenge: Record<string, number> = {};
+      (membersData ?? []).forEach((m: { challenge_id: string; user_id: string; status: string; invited_by: string | null }) => {
         if (m.status === 'accepted') {
           countByChallenge[m.challenge_id] = (countByChallenge[m.challenge_id] ?? 0) + 1;
+        }
+        if (m.status === 'pending') {
+          pendingByChallenge[m.challenge_id] = (pendingByChallenge[m.challenge_id] ?? 0) + 1;
         }
       });
 
@@ -220,12 +296,38 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
         .eq('user_id', currentUserId)
         .in('challenge_id', ids);
 
+      const myStatusByChallenge: Record<string, { status: string; invited_by: string | null }> = {};
       (myMemberships ?? []).forEach((m: { challenge_id: string; status: string; invited_by: string | null }) => {
-        if (m.status === 'pending' && m.invited_by) myPending.push(m.challenge_id);
+        myStatusByChallenge[m.challenge_id] = { status: m.status, invited_by: m.invited_by };
       });
 
-      setMyPendingChallenges(myPending.length);
-      setChallenges(list.map((c) => ({ ...c, member_count: countByChallenge[c.id] ?? 0 })));
+      const enrichedList = list.map((c) => ({
+        ...c,
+        member_count: countByChallenge[c.id] ?? 0,
+        pending_count: pendingByChallenge[c.id] ?? 0,
+        my_status: myStatusByChallenge[c.id]?.status ?? null,
+        my_invited_by: myStatusByChallenge[c.id]?.invited_by ?? null,
+      }));
+
+      let pendingForMe = 0;
+      (myMemberships ?? []).forEach((m: { challenge_id: string; status: string; invited_by: string | null }) => {
+        if (m.status === 'pending') pendingForMe++;
+      });
+
+      const myChallengeIds = enrichedList
+        .filter((c) => c.creator_id === currentUserId)
+        .map((c) => c.id);
+      const pendingApplicationsOnMyChallenges = myChallengeIds.reduce(
+        (sum, cid) => sum + (pendingByChallenge[cid] ?? 0),
+        0
+      );
+
+      setMyPendingChallenges(pendingForMe + pendingApplicationsOnMyChallenges);
+      const visibleList = enrichedList.filter((c) => {
+        if (c.status !== 'closed') return true;
+        return c.creator_id === currentUserId || (c.my_status === 'accepted');
+      });
+      setChallenges(visibleList);
     } else {
       setChallenges([]);
       setMyPendingChallenges(0);
@@ -233,36 +335,83 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
     setChallengesLoading(false);
   }, [currentUserId]);
 
+  const getPosition = async (): Promise<{ lat: number; lng: number; name: string }> => {
+    const pos = await getCurrentPosition({ enableHighAccuracy: false, timeout: 10000 });
+    if (!pos) return { lat: 48.8566, lng: 2.3522, name: 'France' };
+    const name = await reverseGeocode(pos.latitude, pos.longitude);
+    return { lat: pos.latitude, lng: pos.longitude, name };
+  };
+
   const createChallenge = async () => {
-    if (!challengeTitle.trim() || !currentUserId) return;
+    if (!challengeTitle.trim() || !currentUserId || !acceptedResponsibility) return;
+    setChallengeError(null);
     setCreatingChallenge(true);
-    const { data: newChallenge } = await supabase
+
+    const position = await getPosition();
+
+    const { data: newChallenge, error: insertChallengeError } = await supabase
       .from('culinary_challenges')
       .insert({
         creator_id: currentUserId,
         title: challengeTitle.trim(),
         description: challengeDesc.trim(),
+        location_lat: position.lat,
+        location_lng: position.lng,
+        location_name: position.name,
       })
       .select()
       .maybeSingle();
 
-    if (newChallenge) {
-      await supabase.from('culinary_challenge_members').insert({
-        challenge_id: newChallenge.id,
-        user_id: currentUserId,
-        role: 'creator',
-        status: 'accepted',
-        invited_by: null,
-      });
+    if (insertChallengeError || !newChallenge) {
+      setChallengeError(insertChallengeError?.message ?? 'Erreur lors de la création du défi.');
+      setCreatingChallenge(false);
+      return;
     }
+
+    const { error: insertMealError } = await supabase.from('meals').insert({
+      title: challengeTitle.trim(),
+      description: challengeDesc.trim() || 'Défi Cercle Culinaire',
+      image_url: '',
+      host_id: currentUserId,
+      slots_total: 5,
+      slots_taken: 0,
+      confirmed: false,
+      location_lat: position.lat,
+      location_lng: position.lng,
+      location_name: position.name,
+      allergens: [],
+      meal_date: new Date().toISOString(),
+      price: 0,
+      is_premium_meal: false,
+      meal_type: 'culinary_circle',
+      category: 'homemade_meal',
+      expires_at: null,
+      quantity: null,
+    });
+
+    if (insertMealError) setChallengeError('Défi créé, mais erreur carte : ' + insertMealError.message);
+
+    await supabase.from('culinary_challenge_members').insert({
+      challenge_id: newChallenge.id,
+      user_id: currentUserId,
+      role: 'creator',
+      status: 'accepted',
+      invited_by: null,
+    });
+
     setChallengeTitle('');
     setChallengeDesc('');
+    setAcceptedResponsibility(false);
     setCreatingChallenge(false);
     await loadChallenges();
     setShowCreateChallenge(false);
   };
 
   useEffect(() => { loadFeed(); }, [loadFeed]);
+
+  useEffect(() => {
+    if (currentUserId) loadMyAcceptedChallenges();
+  }, [currentUserId, loadMyAcceptedChallenges]);
 
   useEffect(() => {
     if (tab === 'members' && members.length === 0) loadMembers();
@@ -306,9 +455,11 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
       image_url: publicUrl,
       meal_name: photoMealName.trim(),
       caption: photoCaption.trim(),
+      challenge_id: photoChallengeId || null,
     });
     setPhotoMealName('');
     setPhotoCaption('');
+    setPhotoChallengeId(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setPendingFile(null);
@@ -325,6 +476,7 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
     setPendingFile(null);
     setPhotoMealName('');
     setPhotoCaption('');
+    setPhotoChallengeId(null);
     setShowAddForm(false);
   };
 
@@ -333,6 +485,29 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
     setSelectedMyPhoto(null);
     loadMyPhotos();
     loadFeed();
+  };
+
+  const hideMember = async (memberId: string) => {
+    if (!currentUserId) return;
+    await supabase.from('culinary_circle_hidden_members').insert({
+      user_id: currentUserId,
+      hidden_user_id: memberId,
+    });
+    setHiddenMemberIds((prev) => new Set([...prev, memberId]));
+  };
+
+  const unhideMember = async (memberId: string) => {
+    if (!currentUserId) return;
+    await supabase
+      .from('culinary_circle_hidden_members')
+      .delete()
+      .eq('user_id', currentUserId)
+      .eq('hidden_user_id', memberId);
+    setHiddenMemberIds((prev) => {
+      const next = new Set(prev);
+      next.delete(memberId);
+      return next;
+    });
   };
 
   const openSendInvite = (member: CircleMember) => {
@@ -393,7 +568,7 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
   const pendingReceived = received.filter((i) => i.status === 'pending').length;
 
   return (
-    <div className="flex flex-col w-full overflow-hidden" style={{ height: '100dvh', background: 'linear-gradient(to bottom, #1c0a00, #0f0700, #000)' }}>
+    <div className="flex flex-col w-full overflow-hidden h-app" style={{ background: 'linear-gradient(to bottom, #1c0a00, #0f0700, #000)' }}>
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -424,10 +599,10 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
       <div className="relative px-5 pb-3">
         <div className="flex items-center gap-1 bg-white/5 rounded-2xl p-1">
           {([
-            { id: 'feed', label: 'Galerie', icon: 'grid_view' },
             { id: 'challenges', label: 'Défis', icon: 'emoji_events' },
             { id: 'members', label: 'Membres', icon: 'group' },
             { id: 'invitations', label: 'Invitations', icon: 'mail' },
+            { id: 'feed', label: 'Galerie', icon: 'grid_view' },
             { id: 'my_gallery', label: 'Moi', icon: 'photo_camera' },
           ] as { id: Tab; label: string; icon: string }[]).map((t) => (
             <button
@@ -459,9 +634,9 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
           <FeedTab
             photos={feedPhotos}
             loading={feedLoading}
-            selectedPhoto={selectedPhoto}
+            challengeFilter={feedChallengeFilter}
+            onChallengeFilterChange={setFeedChallengeFilter}
             onSelectPhoto={setSelectedPhoto}
-            currentUserId={currentUserId}
           />
         )}
         {tab === 'challenges' && (
@@ -473,11 +648,14 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
             challengeTitle={challengeTitle}
             challengeDesc={challengeDesc}
             creating={creatingChallenge}
+            acceptedResponsibility={acceptedResponsibility}
+            createError={challengeError}
             onShowCreate={() => setShowCreateChallenge(true)}
             onTitleChange={setChallengeTitle}
             onDescChange={setChallengeDesc}
+            onAcceptResponsibility={setAcceptedResponsibility}
             onCreate={createChallenge}
-            onCancelCreate={() => { setShowCreateChallenge(false); setChallengeTitle(''); setChallengeDesc(''); }}
+            onCancelCreate={() => { setShowCreateChallenge(false); setChallengeTitle(''); setChallengeDesc(''); setAcceptedResponsibility(false); setChallengeError(null); }}
             onSelectChallenge={setSelectedChallenge}
           />
         )}
@@ -485,8 +663,14 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
           <MembersTab
             members={members}
             loading={membersLoading}
+            hiddenMemberIds={hiddenMemberIds}
+            showHidden={showHidden}
+            onToggleShowHidden={() => setShowHidden((v) => !v)}
             onInvite={openSendInvite}
             onContact={onContactMember}
+            onHide={hideMember}
+            onUnhide={unhideMember}
+            onViewProfile={setViewProfileUserId}
           />
         )}
         {tab === 'invitations' && (
@@ -511,14 +695,15 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
             previewUrl={previewUrl}
             photoMealName={photoMealName}
             photoCaption={photoCaption}
+            photoChallengeId={photoChallengeId}
+            myAcceptedChallenges={myAcceptedChallenges}
             onPhotoMealNameChange={setPhotoMealName}
             onPhotoCaptionChange={setPhotoCaption}
+            onPhotoChallengeIdChange={setPhotoChallengeId}
             onAddClick={() => fileInputRef.current?.click()}
             onUpload={handleUpload}
             onCancelAdd={cancelAdd}
-            selectedPhoto={selectedMyPhoto}
             onSelectPhoto={setSelectedMyPhoto}
-            onDeletePhoto={handleDeletePhoto}
           />
         )}
       </div>
@@ -561,10 +746,91 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
           currentUserId={currentUserId}
           onClose={() => { setSelectedChallenge(null); loadChallenges(); }}
           onContactMember={onContactMember}
+          onViewMemberProfile={setViewProfileUserId}
+        />
+      )}
+
+      {viewProfileUserId && (
+        <MemberProfileModal
+          userId={viewProfileUserId}
+          onClose={() => setViewProfileUserId(null)}
+          onContact={(id, name, avatar) => { setViewProfileUserId(null); onContactMember(id, name, avatar); }}
         />
       )}
 
       <BottomNav active={activeScreen} onChange={onNavigate} unreadBookings={unreadBookings} />
+
+      {selectedPhoto && createPortal(
+        <div className="fixed inset-0 z-[200] flex flex-col bg-black" onClick={() => setSelectedPhoto(null)}>
+          <div className="flex items-center justify-between px-4 pb-3 shrink-0" style={{ paddingTop: 'max(52px, env(safe-area-inset-top))' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              {selectedPhoto.author && (
+                <img src={selectedPhoto.author.avatar_url || ''} alt={selectedPhoto.author.name} className="w-9 h-9 rounded-full object-cover border border-amber-400/30 shrink-0" />
+              )}
+              <div className="min-w-0">
+                <h3 className="text-white font-bold text-base leading-tight truncate">{selectedPhoto.meal_name}</h3>
+                {selectedPhoto.author && <p className="text-amber-300/60 text-xs">{selectedPhoto.author.name}</p>}
+                {selectedPhoto.challenge && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="material-symbols-outlined text-amber-400 text-[11px] fill-1">emoji_events</span>
+                    <p className="text-amber-400/60 text-[11px] truncate">{selectedPhoto.challenge.title}</p>
+                  </div>
+                )}
+                {selectedPhoto.caption && <p className="text-white/40 text-xs mt-0.5 truncate">{selectedPhoto.caption}</p>}
+              </div>
+            </div>
+            <button onClick={() => setSelectedPhoto(null)} className="w-10 h-10 bg-white/15 rounded-full flex items-center justify-center shrink-0 ml-3">
+              <span className="material-symbols-outlined text-white text-[22px]">close</span>
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center px-4 py-3 min-h-0" onClick={(e) => e.stopPropagation()}>
+            <img src={selectedPhoto.image_url} alt={selectedPhoto.meal_name} className="max-w-full max-h-full object-contain rounded-2xl" />
+          </div>
+          {selectedPhoto.user_id !== currentUserId && (
+            <div className="px-4 pt-2 shrink-0" style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }} onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => hidePhoto(selectedPhoto)}
+                disabled={hidingPhoto}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/8 border border-white/15 text-white/50 font-semibold text-sm active:scale-95 transition-all disabled:opacity-40"
+              >
+                <span className="material-symbols-outlined text-[16px]">visibility_off</span>
+                {hidingPhoto ? 'Masquage...' : 'Masquer cette photo'}
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+
+      {selectedMyPhoto && createPortal(
+        <div className="fixed inset-0 z-[200] flex flex-col bg-black" onClick={() => setSelectedMyPhoto(null)}>
+          <div className="flex items-center justify-between px-4 pb-3 shrink-0" style={{ paddingTop: 'max(52px, env(safe-area-inset-top))' }} onClick={(e) => e.stopPropagation()}>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-white font-bold text-base leading-tight truncate">{selectedMyPhoto.meal_name}</h3>
+              {selectedMyPhoto.challenge && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className="material-symbols-outlined text-amber-400 text-[12px] fill-1">emoji_events</span>
+                  <p className="text-amber-400/70 text-xs truncate">{selectedMyPhoto.challenge.title}</p>
+                </div>
+              )}
+              {selectedMyPhoto.caption && <p className="text-white/40 text-xs mt-0.5 truncate">{selectedMyPhoto.caption}</p>}
+            </div>
+            <button onClick={() => setSelectedMyPhoto(null)} className="w-10 h-10 bg-white/15 rounded-full flex items-center justify-center shrink-0 ml-3">
+              <span className="material-symbols-outlined text-white text-[22px]">close</span>
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center px-4 py-3 min-h-0" onClick={(e) => e.stopPropagation()}>
+            <img src={selectedMyPhoto.image_url} alt={selectedMyPhoto.meal_name} className="max-w-full max-h-full object-contain rounded-2xl" />
+          </div>
+          <div className="px-4 pt-2 pb-6 shrink-0" style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }} onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => handleDeletePhoto(selectedMyPhoto)} className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-400 font-bold text-sm active:scale-95 transition-all">
+              <span className="material-symbols-outlined text-[16px]">delete</span>
+              Supprimer cette photo
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -577,9 +843,12 @@ function ChallengesTab({
   challengeTitle,
   challengeDesc,
   creating,
+  acceptedResponsibility,
+  createError,
   onShowCreate,
   onTitleChange,
   onDescChange,
+  onAcceptResponsibility,
   onCreate,
   onCancelCreate,
   onSelectChallenge,
@@ -591,9 +860,12 @@ function ChallengesTab({
   challengeTitle: string;
   challengeDesc: string;
   creating: boolean;
+  acceptedResponsibility: boolean;
+  createError: string | null;
   onShowCreate: () => void;
   onTitleChange: (v: string) => void;
   onDescChange: (v: string) => void;
+  onAcceptResponsibility: (v: boolean) => void;
   onCreate: () => void;
   onCancelCreate: () => void;
   onSelectChallenge: (c: CulinaryChallenge) => void;
@@ -601,6 +873,7 @@ function ChallengesTab({
   const statusConfig: Record<string, { label: string; color: string }> = {
     open: { label: 'Ouvert', color: 'bg-green-500/20 text-green-300 border-green-500/20' },
     active: { label: 'En cours', color: 'bg-amber-500/20 text-amber-300 border-amber-500/20' },
+    closed: { label: 'Fermé', color: 'bg-red-500/20 text-red-300 border-red-500/20' },
     completed: { label: 'Terminé', color: 'bg-white/10 text-white/40 border-white/10' },
   };
 
@@ -648,12 +921,33 @@ function ChallengesTab({
               Chaque membre accueille les autres chez lui pour un repas. Minimum 3, maximum 5 personnes. Chacun note les repas à la fin.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => onAcceptResponsibility(!acceptedResponsibility)}
+            className="w-full flex items-start gap-3 bg-white/5 border border-amber-400/20 rounded-xl p-3 text-left active:scale-95 transition-all"
+          >
+            <div className={`flex-shrink-0 w-5 h-5 rounded border-2 mt-0.5 flex items-center justify-center transition-all ${acceptedResponsibility ? 'bg-amber-500 border-amber-500' : 'border-amber-400/40'}`}>
+              {acceptedResponsibility && (
+                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </div>
+            <p className="text-[11px] text-amber-200/70 leading-relaxed">
+              Je comprends que ShareEat n'est pas responsable des rencontres organisées via cette plateforme. Les participants sont seuls responsables de leurs interactions, de leur sécurité et du respect des règles lors des repas du Cercle.
+            </p>
+          </button>
+          {createError && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3">
+              <p className="text-[11px] text-red-400 leading-relaxed">{createError}</p>
+            </div>
+          )}
           <div className="flex gap-2">
             <button onClick={onCancelCreate}
               className="flex-1 py-2.5 rounded-xl border border-amber-400/20 text-amber-400/60 text-sm font-bold">
               Annuler
             </button>
-            <button onClick={onCreate} disabled={creating || !challengeTitle.trim()}
+            <button onClick={onCreate} disabled={creating || !challengeTitle.trim() || !acceptedResponsibility}
               className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-1.5">
               {creating ? (
                 <><span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>Création...</>
@@ -666,30 +960,70 @@ function ChallengesTab({
       )}
 
       {challenges.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
-          <div className="w-16 h-16 bg-amber-400/10 rounded-full flex items-center justify-center mb-4">
-            <span className="material-symbols-outlined text-amber-400/30 text-[32px]">emoji_events</span>
+        <div className="flex flex-col items-center justify-center py-12 px-8 text-center">
+          <div className="w-20 h-20 bg-amber-400/10 rounded-full flex items-center justify-center mb-5">
+            <span className="material-symbols-outlined text-amber-400/40 text-[40px]">emoji_events</span>
           </div>
-          <p className="text-amber-300/50 font-semibold">Aucun défi en cours</p>
-          <p className="text-amber-400/30 text-sm mt-1">Lance le premier défi du Cercle !</p>
+          <p className="text-amber-200 font-bold text-base mb-1">Aucun défi en cours</p>
+          <p className="text-amber-400/50 text-sm mb-5 leading-relaxed">
+            Lance le premier défi du Cercle ! Réunis 3 à 5 membres, chacun cuisine chez soi et les autres notent.
+          </p>
+          {!showCreate && (
+            <button
+              onClick={onShowCreate}
+              className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-amber-500 text-white font-bold text-sm active:scale-95 transition-all shadow-lg shadow-amber-500/30"
+            >
+              <span className="material-symbols-outlined text-[18px]">emoji_events</span>
+              Lancer le premier défi
+            </button>
+          )}
         </div>
       ) : (
         challenges.map((c) => {
           const sc = statusConfig[c.status] ?? statusConfig.open;
           const isMyChallenge = c.creator_id === currentUserId;
+          const hasPendingApplicants = isMyChallenge && (c.pending_count ?? 0) > 0;
+          const myStatus = c.my_status ?? null;
+          const iAmPending = !isMyChallenge && myStatus === 'pending';
+          const iAmAccepted = !isMyChallenge && myStatus === 'accepted';
+          const iAmInvited = iAmPending && c.my_invited_by;
+
+          let cardBorder = 'bg-white/5 border-amber-400/10';
+          if (hasPendingApplicants) cardBorder = 'bg-amber-500/10 border-amber-400/30';
+          else if (iAmPending) cardBorder = 'bg-amber-500/8 border-amber-400/25';
+          else if (iAmAccepted) cardBorder = 'bg-green-500/8 border-green-500/20';
+
           return (
             <button
               key={c.id}
               onClick={() => onSelectChallenge(c)}
-              className="w-full text-left bg-white/5 border border-amber-400/10 rounded-2xl p-4 active:scale-[0.98] transition-all"
+              className={`w-full text-left rounded-2xl p-4 active:scale-[0.98] transition-all relative border ${cardBorder}`}
             >
+              {hasPendingApplicants && (
+                <div className="absolute top-3 right-3 flex items-center gap-1 bg-red-500 rounded-full px-2 py-0.5">
+                  <span className="material-symbols-outlined text-white text-[10px]">person_add</span>
+                  <span className="text-white text-[10px] font-extrabold">{c.pending_count}</span>
+                </div>
+              )}
+              {iAmPending && !hasPendingApplicants && (
+                <div className="absolute top-3 right-3 flex items-center gap-1 bg-amber-500/80 rounded-full px-2 py-0.5">
+                  <span className="material-symbols-outlined text-white text-[10px]">pending</span>
+                  <span className="text-white text-[10px] font-extrabold">En attente</span>
+                </div>
+              )}
+              {iAmAccepted && !hasPendingApplicants && (
+                <div className="absolute top-3 right-3 flex items-center gap-1 bg-green-500/80 rounded-full px-2 py-0.5">
+                  <span className="material-symbols-outlined text-white text-[10px]">check_circle</span>
+                  <span className="text-white text-[10px] font-extrabold">Accepté</span>
+                </div>
+              )}
               <div className="flex items-start gap-3">
                 <img
                   src={c.creator?.avatar_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'}
                   alt={c.creator?.name}
                   className="w-10 h-10 rounded-full object-cover border border-amber-400/20 shrink-0 mt-0.5"
                 />
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 pr-20">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-sm font-extrabold text-amber-100 truncate">{c.title}</p>
                     <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full border ${sc.color} shrink-0`}>
@@ -704,12 +1038,31 @@ function ChallengesTab({
                   )}
                 </div>
               </div>
+
+              {iAmPending && (
+                <div className="mt-2.5 bg-amber-500/10 border border-amber-400/20 rounded-xl px-3 py-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-amber-400/70 text-[14px]">hourglass_empty</span>
+                  <p className="text-xs text-amber-300/70 flex-1">
+                    {iAmInvited ? "Tu as été invité(e) — réponds à l'invitation" : "Candidature envoyée — attente d'acceptation par le créateur"}
+                  </p>
+                  <span className="material-symbols-outlined text-amber-400/40 text-[14px]">chevron_right</span>
+                </div>
+              )}
+
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex items-center gap-1">
                   <span className="material-symbols-outlined text-amber-400/40 text-[14px]">group</span>
                   <span className="text-xs text-amber-400/50">{c.member_count ?? 0}/{c.max_members} membres</span>
                 </div>
-                {c.status === 'open' && (c.member_count ?? 0) < c.max_members && (
+                {hasPendingApplicants && (
+                  <div className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-red-400/80 text-[14px]">pending</span>
+                    <span className="text-xs text-red-400/80 font-semibold">
+                      {c.pending_count} candidature{(c.pending_count ?? 0) > 1 ? 's' : ''} en attente
+                    </span>
+                  </div>
+                )}
+                {!hasPendingApplicants && !iAmPending && !iAmAccepted && (c.status === 'open' || c.status === 'active') && (c.member_count ?? 0) < c.max_members && !isMyChallenge && (
                   <div className="flex items-center gap-1">
                     <span className="material-symbols-outlined text-green-400/60 text-[14px]">person_add</span>
                     <span className="text-xs text-green-400/60">Places disponibles</span>
@@ -730,16 +1083,28 @@ function ChallengesTab({
 function FeedTab({
   photos,
   loading,
-  selectedPhoto,
+  challengeFilter,
+  onChallengeFilterChange,
   onSelectPhoto,
-  currentUserId,
 }: {
   photos: CulinaryPhoto[];
   loading: boolean;
-  selectedPhoto: CulinaryPhoto | null;
-  onSelectPhoto: (p: CulinaryPhoto | null) => void;
-  currentUserId: string | null;
+  challengeFilter: string | null;
+  onChallengeFilterChange: (id: string | null) => void;
+  onSelectPhoto: (p: CulinaryPhoto) => void;
 }) {
+  const challengesInFeed = Array.from(
+    new Map(
+      photos
+        .filter((p) => p.challenge_id && p.challenge)
+        .map((p) => [p.challenge_id!, p.challenge!])
+    ).entries()
+  ).map(([id, c]) => ({ id, title: c.title }));
+
+  const filtered = challengeFilter
+    ? photos.filter((p) => p.challenge_id === challengeFilter)
+    : photos;
+
   if (loading) {
     return (
       <div className="grid grid-cols-3 gap-1 p-1">
@@ -749,78 +1114,91 @@ function FeedTab({
       </div>
     );
   }
+
   if (photos.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
         <div className="w-16 h-16 bg-amber-400/10 rounded-full flex items-center justify-center mb-4">
           <span className="material-symbols-outlined text-amber-400/40 text-[32px]">photo_camera</span>
         </div>
-        <p className="text-amber-300/50 font-semibold">Galerie vide pour l'instant</p>
-        <p className="text-amber-400/30 text-sm mt-1">Les membres partageront bientôt leurs créations</p>
+        <p className="text-amber-300/50 font-semibold">Aucune photo partagée pour l'instant</p>
+        <p className="text-amber-400/30 text-sm mt-1 leading-relaxed">
+          Partage des photos de tes plats depuis l'onglet "Moi" et associe-les à un défi
+        </p>
       </div>
     );
   }
+
   return (
     <div>
-      <div className="grid grid-cols-3 gap-1 p-1">
-        {photos.map((photo) => (
+      {challengesInFeed.length > 0 && (
+        <div className="px-3 pt-2 pb-3 flex gap-2 overflow-x-auto">
           <button
-            key={photo.id}
-            onClick={() => onSelectPhoto(photo)}
-            className="aspect-square relative rounded-xl overflow-hidden active:scale-95 transition-all group"
+            onClick={() => onChallengeFilterChange(null)}
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border ${
+              !challengeFilter
+                ? 'bg-amber-500 text-white border-amber-500'
+                : 'bg-white/5 text-amber-300/50 border-white/10'
+            }`}
           >
-            <img
-              src={photo.image_url}
-              alt={photo.meal_name}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-            {photo.author && (
-              <div className="absolute bottom-1 left-1">
-                <img
-                  src={photo.author.avatar_url || ''}
-                  alt={photo.author.name}
-                  className="w-5 h-5 rounded-full object-cover border border-amber-400/40"
-                />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-active:opacity-100 transition-opacity" />
+            <span className="material-symbols-outlined text-[12px]">grid_view</span>
+            Tout
           </button>
-        ))}
-      </div>
-
-      {selectedPhoto && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-black/96" onClick={() => onSelectPhoto(null)}>
-          <div className="flex items-center justify-between px-4 pt-14 pb-3" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              {selectedPhoto.author && (
-                <img
-                  src={selectedPhoto.author.avatar_url || ''}
-                  alt={selectedPhoto.author.name}
-                  className="w-9 h-9 rounded-full object-cover border border-amber-400/30 shrink-0"
-                />
-              )}
-              <div className="min-w-0">
-                <h3 className="text-white font-bold text-base leading-tight truncate">{selectedPhoto.meal_name}</h3>
-                {selectedPhoto.author && (
-                  <p className="text-amber-300/60 text-xs">{selectedPhoto.author.name}</p>
-                )}
-                {selectedPhoto.caption && (
-                  <p className="text-white/40 text-xs mt-0.5 truncate">{selectedPhoto.caption}</p>
-                )}
-              </div>
-            </div>
-            <button onClick={() => onSelectPhoto(null)} className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center shrink-0 ml-2">
-              <span className="material-symbols-outlined text-white text-[20px]">close</span>
+          {challengesInFeed.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => onChallengeFilterChange(challengeFilter === c.id ? null : c.id)}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border max-w-[160px] ${
+                challengeFilter === c.id
+                  ? 'bg-amber-500 text-white border-amber-500'
+                  : 'bg-white/5 text-amber-300/50 border-white/10'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[12px] shrink-0">emoji_events</span>
+              <span className="truncate">{c.title}</span>
             </button>
+          ))}
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+          <div className="w-12 h-12 bg-amber-400/10 rounded-full flex items-center justify-center mb-3">
+            <span className="material-symbols-outlined text-amber-400/40 text-[24px]">photo_camera</span>
           </div>
-          <div className="flex-1 flex items-center justify-center px-2" onClick={(e) => e.stopPropagation()}>
-            <img src={selectedPhoto.image_url} alt={selectedPhoto.meal_name} className="w-full max-h-full object-contain rounded-2xl" />
-          </div>
-          {selectedPhoto.author && selectedPhoto.author.id !== currentUserId && (
-            <div className="px-4 pb-10 pt-4" onClick={(e) => e.stopPropagation()}>
-            </div>
-          )}
+          <p className="text-amber-300/40 text-sm">Aucune photo pour ce défi</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-1 p-1">
+          {filtered.map((photo) => (
+            <button
+              key={photo.id}
+              onClick={() => onSelectPhoto(photo)}
+              className="aspect-square relative rounded-xl overflow-hidden active:scale-95 transition-all group"
+            >
+              <img
+                src={photo.image_url}
+                alt={photo.meal_name}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+              {photo.challenge_id && (
+                <div className="absolute top-1 right-1 w-5 h-5 bg-amber-500/80 rounded-full flex items-center justify-center">
+                  <span className="material-symbols-outlined text-white text-[11px] fill-1">emoji_events</span>
+                </div>
+              )}
+              {photo.author && (
+                <div className="absolute bottom-1 left-1">
+                  <img
+                    src={photo.author.avatar_url || ''}
+                    alt={photo.author.name}
+                    className="w-5 h-5 rounded-full object-cover border border-amber-400/40"
+                  />
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-active:opacity-100 transition-opacity" />
+            </button>
+          ))}
         </div>
       )}
     </div>
@@ -830,13 +1208,25 @@ function FeedTab({
 function MembersTab({
   members,
   loading,
+  hiddenMemberIds,
+  showHidden,
+  onToggleShowHidden,
   onInvite,
   onContact,
+  onHide,
+  onUnhide,
+  onViewProfile,
 }: {
   members: CircleMember[];
   loading: boolean;
+  hiddenMemberIds: Set<string>;
+  showHidden: boolean;
+  onToggleShowHidden: () => void;
   onInvite: (m: CircleMember) => void;
   onContact: (hostId: string, hostName: string, hostAvatar: string) => void;
+  onHide: (id: string) => void;
+  onUnhide: (id: string) => void;
+  onViewProfile: (userId: string) => void;
 }) {
   if (loading) {
     return (
@@ -847,6 +1237,10 @@ function MembersTab({
       </div>
     );
   }
+
+  const visibleMembers = members.filter((m) => !hiddenMemberIds.has(m.id));
+  const hiddenMembers = members.filter((m) => hiddenMemberIds.has(m.id));
+
   if (members.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
@@ -858,72 +1252,193 @@ function MembersTab({
       </div>
     );
   }
+
   return (
     <div className="px-4 pt-3 pb-6 space-y-2">
-      <p className="text-[10px] uppercase tracking-widest font-bold text-amber-400/40 mb-3">
-        {members.length} membre{members.length > 1 ? 's' : ''} du Cercle
-      </p>
-      {members.map((member) => (
-        <div key={member.id} className="bg-white/5 border border-amber-400/10 rounded-2xl p-3 overflow-hidden">
-          <div className="flex items-center gap-3">
-            <img
-              src={member.avatar_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'}
-              alt={member.name}
-              className="w-11 h-11 rounded-full object-cover border-2 border-amber-400/20 shrink-0"
-            />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-sm font-bold text-amber-100 truncate">{member.name}</p>
-                <span className="material-symbols-outlined text-amber-400 text-[13px] fill-1 shrink-0">verified</span>
-              </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <p className="text-[10px] text-amber-400/40">
-                  {member.shares_count} partages
-                </p>
-                {member.rating > 0 && (
-                  <div className="flex items-center gap-0.5">
-                    <span className="material-symbols-outlined text-amber-400 text-[10px] fill-1">star</span>
-                    <span className="text-[10px] text-amber-300/50">{member.rating.toFixed(1)}</span>
-                  </div>
-                )}
-              </div>
-              {member.location_name && (
-                <p className="text-[10px] text-amber-400/30 truncate mt-0.5">{member.location_name}</p>
-              )}
-            </div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[10px] uppercase tracking-widest font-bold text-amber-400/40">
+          {visibleMembers.length} membre{visibleMembers.length > 1 ? 's' : ''} du Cercle
+        </p>
+        {hiddenMembers.length > 0 && (
+          <button
+            onClick={onToggleShowHidden}
+            className="flex items-center gap-1 text-[10px] text-amber-400/40 hover:text-amber-400/70 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[13px]">
+              {showHidden ? 'visibility_off' : 'visibility'}
+            </span>
+            {showHidden ? 'Masquer' : `${hiddenMembers.length} masqué${hiddenMembers.length > 1 ? 's' : ''}`}
+          </button>
+        )}
+      </div>
+
+      {visibleMembers.map((member) => (
+        <MemberCard
+          key={member.id}
+          member={member}
+          isHidden={false}
+          onInvite={onInvite}
+          onContact={onContact}
+          onHide={onHide}
+          onUnhide={onUnhide}
+          onViewProfile={onViewProfile}
+        />
+      ))}
+
+      {showHidden && hiddenMembers.length > 0 && (
+        <>
+          <div className="pt-2 pb-1">
+            <p className="text-[10px] uppercase tracking-widest font-bold text-amber-400/20">
+              Masqués de mon Cercle
+            </p>
           </div>
+          {hiddenMembers.map((member) => (
+            <MemberCard
+              key={member.id}
+              member={member}
+              isHidden={true}
+              onInvite={onInvite}
+              onContact={onContact}
+              onHide={onHide}
+              onUnhide={onUnhide}
+              onViewProfile={onViewProfile}
+            />
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
 
-          {member.photos.length > 0 && (
-            <div className="mt-2.5 flex gap-1.5 overflow-x-auto pb-1">
-              {member.photos.slice(0, 5).map((ph) => (
-                <img
-                  key={ph.id}
-                  src={ph.image_url}
-                  alt={ph.meal_name}
-                  className="w-14 h-14 rounded-xl object-cover shrink-0 border border-amber-400/10"
-                />
-              ))}
-            </div>
+function MemberCard({
+  member,
+  isHidden,
+  onInvite,
+  onContact,
+  onHide,
+  onUnhide,
+  onViewProfile,
+}: {
+  member: CircleMember;
+  isHidden: boolean;
+  onInvite: (m: CircleMember) => void;
+  onContact: (hostId: string, hostName: string, hostAvatar: string) => void;
+  onHide: (id: string) => void;
+  onUnhide: (id: string) => void;
+  onViewProfile: (userId: string) => void;
+}) {
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  return (
+    <div className={`border rounded-2xl p-3 overflow-hidden transition-all ${
+      isHidden
+        ? 'bg-white/3 border-white/5 opacity-60'
+        : 'bg-white/5 border-amber-400/10'
+    }`}>
+      <div className="flex items-center gap-3">
+        <img
+          src={member.avatar_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'}
+          alt={member.name}
+          className={`w-11 h-11 rounded-full object-cover border-2 shrink-0 ${isHidden ? 'border-white/10 grayscale' : 'border-amber-400/20'}`}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-bold text-amber-100 truncate">{member.name}</p>
+            {!isHidden && (
+              <span className="material-symbols-outlined text-amber-400 text-[13px] fill-1 shrink-0">verified</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-[10px] text-amber-400/40">{member.shares_count} partages</p>
+            {member.rating > 0 && !isHidden && (
+              <div className="flex items-center gap-0.5">
+                <span className="material-symbols-outlined text-amber-400 text-[10px] fill-1">star</span>
+                <span className="text-[10px] text-amber-300/50">{member.rating.toFixed(1)}</span>
+              </div>
+            )}
+          </div>
+          {member.location_name && !isHidden && (
+            <p className="text-[10px] text-amber-400/30 truncate mt-0.5">{member.location_name}</p>
           )}
+        </div>
+        {!isHidden ? (
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 border border-white/10 shrink-0"
+          >
+            <span className="material-symbols-outlined text-white/30 text-[15px]">person_remove</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => onUnhide(member.id)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-400/20 text-amber-400/60 text-[10px] font-bold shrink-0 active:scale-95 transition-all"
+          >
+            <span className="material-symbols-outlined text-[12px]">visibility</span>
+            Restaurer
+          </button>
+        )}
+      </div>
 
-          <div className="mt-2.5 flex gap-2">
+      {!isHidden && member.photos.length > 0 && (
+        <div className="mt-2.5 flex gap-1.5 overflow-x-auto pb-1">
+          {member.photos.slice(0, 5).map((ph) => (
+            <img
+              key={ph.id}
+              src={ph.image_url}
+              alt={ph.meal_name}
+              className="w-14 h-14 rounded-xl object-cover shrink-0 border border-amber-400/10"
+            />
+          ))}
+        </div>
+      )}
+
+      {!isHidden && (
+        <div className="mt-2.5 flex gap-2">
+          <button
+            onClick={() => onViewProfile(member.id)}
+            className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-white/5 border border-amber-400/15 text-amber-300/60 text-xs font-bold active:scale-95 transition-all shrink-0"
+          >
+            <span className="material-symbols-outlined text-[13px]">person</span>
+          </button>
+          <button
+            onClick={() => onContact(member.id, member.name, member.avatar_url)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/5 border border-amber-400/15 text-amber-300/70 text-xs font-bold active:scale-95 transition-all"
+          >
+            <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
+            Message
+          </button>
+          <button
+            onClick={() => onInvite(member)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-500/80 text-white text-xs font-bold active:scale-95 transition-all"
+          >
+            <span className="material-symbols-outlined text-[13px]">send</span>
+            Inviter
+          </button>
+        </div>
+      )}
+
+      {showConfirm && (
+        <div className="mt-3 bg-black/40 rounded-2xl border border-red-500/20 p-3 space-y-2">
+          <p className="text-xs text-amber-200/70 leading-relaxed">
+            Masquer <span className="font-bold text-amber-100">{member.name}</span> de ton Cercle ? Il ne sera plus visible dans ta liste.
+          </p>
+          <div className="flex gap-2">
             <button
-              onClick={() => onContact(member.id, member.name, member.avatar_url)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/5 border border-amber-400/15 text-amber-300/70 text-xs font-bold active:scale-95 transition-all"
+              onClick={() => setShowConfirm(false)}
+              className="flex-1 py-2 rounded-xl border border-amber-400/20 text-amber-400/50 text-xs font-bold active:scale-95 transition-all"
             >
-              <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
-              Message
+              Annuler
             </button>
             <button
-              onClick={() => onInvite(member)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-500/80 text-white text-xs font-bold active:scale-95 transition-all"
+              onClick={() => { onHide(member.id); setShowConfirm(false); }}
+              className="flex-1 py-2 rounded-xl bg-red-500/80 text-white text-xs font-bold active:scale-95 transition-all flex items-center justify-center gap-1"
             >
-              <span className="material-symbols-outlined text-[13px]">send</span>
-              Inviter
+              <span className="material-symbols-outlined text-[12px]">person_remove</span>
+              Masquer
             </button>
           </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -1042,14 +1557,15 @@ function MyGalleryTab({
   previewUrl,
   photoMealName,
   photoCaption,
+  photoChallengeId,
+  myAcceptedChallenges,
   onPhotoMealNameChange,
   onPhotoCaptionChange,
+  onPhotoChallengeIdChange,
   onAddClick,
   onUpload,
   onCancelAdd,
-  selectedPhoto,
   onSelectPhoto,
-  onDeletePhoto,
 }: {
   photos: CulinaryPhoto[];
   loading: boolean;
@@ -1060,14 +1576,15 @@ function MyGalleryTab({
   previewUrl: string | null;
   photoMealName: string;
   photoCaption: string;
+  photoChallengeId: string | null;
+  myAcceptedChallenges: { id: string; title: string }[];
   onPhotoMealNameChange: (v: string) => void;
   onPhotoCaptionChange: (v: string) => void;
+  onPhotoChallengeIdChange: (v: string | null) => void;
   onAddClick: () => void;
   onUpload: () => void;
   onCancelAdd: () => void;
-  selectedPhoto: CulinaryPhoto | null;
-  onSelectPhoto: (p: CulinaryPhoto | null) => void;
-  onDeletePhoto: (p: CulinaryPhoto) => void;
+  onSelectPhoto: (p: CulinaryPhoto) => void;
 }) {
   if (loading) {
     return (
@@ -1126,6 +1643,41 @@ function MyGalleryTab({
                 className="w-full bg-white/5 border border-amber-400/20 rounded-xl px-3 py-2.5 text-sm text-amber-100 placeholder-amber-400/30 outline-none focus:border-amber-400/50 resize-none"
               />
             </div>
+            {myAcceptedChallenges.length > 0 && (
+              <div>
+                <label className="text-[10px] uppercase tracking-widest font-bold text-amber-400/70 mb-1.5 block">
+                  Lier à un défi (optionnel)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onPhotoChallengeIdChange(null)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border ${
+                      !photoChallengeId
+                        ? 'bg-amber-500/30 border-amber-500/50 text-amber-200'
+                        : 'bg-white/5 border-white/10 text-amber-400/40'
+                    }`}
+                  >
+                    Aucun défi
+                  </button>
+                  {myAcceptedChallenges.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => onPhotoChallengeIdChange(photoChallengeId === c.id ? null : c.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border max-w-[200px] ${
+                        photoChallengeId === c.id
+                          ? 'bg-amber-500 border-amber-500 text-white'
+                          : 'bg-white/5 border-white/10 text-amber-400/40'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[11px] shrink-0">emoji_events</span>
+                      <span className="truncate">{c.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {uploadError && (
               <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2.5">
                 <span className="material-symbols-outlined text-red-400 text-[16px] shrink-0">error</span>
@@ -1175,34 +1727,13 @@ function MyGalleryTab({
               className="aspect-square relative rounded-xl overflow-hidden active:scale-95 transition-all"
             >
               <img src={photo.image_url} alt={photo.meal_name} className="w-full h-full object-cover" />
+              {photo.challenge_id && (
+                <div className="absolute top-1 right-1 w-5 h-5 bg-amber-500/80 rounded-full flex items-center justify-center">
+                  <span className="material-symbols-outlined text-white text-[11px] fill-1">emoji_events</span>
+                </div>
+              )}
             </button>
           ))}
-        </div>
-      )}
-
-      {selectedPhoto && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-black/96" onClick={() => onSelectPhoto(null)}>
-          <div className="flex items-center justify-between px-4 pt-14 pb-3" onClick={(e) => e.stopPropagation()}>
-            <div>
-              <h3 className="text-white font-bold text-lg">{selectedPhoto.meal_name}</h3>
-              {selectedPhoto.caption && <p className="text-white/40 text-sm mt-0.5">{selectedPhoto.caption}</p>}
-            </div>
-            <button onClick={() => onSelectPhoto(null)} className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center">
-              <span className="material-symbols-outlined text-white text-[20px]">close</span>
-            </button>
-          </div>
-          <div className="flex-1 flex items-center justify-center px-2" onClick={(e) => e.stopPropagation()}>
-            <img src={selectedPhoto.image_url} alt={selectedPhoto.meal_name} className="w-full max-h-full object-contain rounded-2xl" />
-          </div>
-          <div className="px-4 pb-10 pt-4" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => onDeletePhoto(selectedPhoto)}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-400 font-bold text-sm active:scale-95 transition-all"
-            >
-              <span className="material-symbols-outlined text-[16px]">delete</span>
-              Supprimer cette photo
-            </button>
-          </div>
         </div>
       )}
     </div>

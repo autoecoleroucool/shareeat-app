@@ -6,6 +6,7 @@ interface CulinaryGalleryProps {
   userId: string;
   isOwner: boolean;
   isCommunityFeed?: boolean;
+  currentUserId?: string;
 }
 
 function compressImage(file: File): Promise<Blob> {
@@ -32,7 +33,7 @@ function compressImage(file: File): Promise<Blob> {
   });
 }
 
-export default function CulinaryGallery({ userId, isOwner, isCommunityFeed = false }: CulinaryGalleryProps) {
+export default function CulinaryGallery({ userId, isOwner, isCommunityFeed = false, currentUserId }: CulinaryGalleryProps) {
   const [photos, setPhotos] = useState<CulinaryPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -112,6 +113,13 @@ export default function CulinaryGallery({ userId, isOwner, isCommunityFeed = fal
   };
 
   const handleDelete = async (photo: CulinaryPhoto) => {
+    try {
+      const url = new URL(photo.image_url);
+      const pathParts = url.pathname.split('/culinary-photos/');
+      if (pathParts.length > 1) {
+        await supabase.storage.from('culinary-photos').remove([pathParts[1]]);
+      }
+    } catch (_) {}
     await supabase.from('culinary_circle_photos').delete().eq('id', photo.id);
     setSelectedPhoto(null);
     loadPhotos();
@@ -180,9 +188,14 @@ export default function CulinaryGallery({ userId, isOwner, isCommunityFeed = fal
         {selectedPhoto && (
           <div
             className="fixed inset-0 z-50 flex flex-col bg-black/95"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
             onClick={() => setSelectedPhoto(null)}
           >
-            <div className="flex items-center justify-between px-4 pt-12 pb-3" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="flex items-center justify-between px-4 pb-3 shrink-0"
+              style={{ paddingTop: 'max(48px, env(safe-area-inset-top))' }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 {selectedPhoto.author && (
                   <img
@@ -209,13 +222,26 @@ export default function CulinaryGallery({ userId, isOwner, isCommunityFeed = fal
               </button>
             </div>
 
-            <div className="flex-1 flex items-center justify-center px-2" onClick={(e) => e.stopPropagation()}>
+            <div className="flex-1 flex items-center justify-center px-4 py-2 min-h-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <img
                 src={selectedPhoto.image_url}
                 alt={selectedPhoto.meal_name}
-                className="w-full max-h-full object-contain rounded-2xl"
+                className="max-w-full max-h-full object-contain rounded-2xl"
+                style={{ maxHeight: '100%' }}
               />
             </div>
+
+            {currentUserId && selectedPhoto.user_id === currentUserId && (
+              <div className="px-4 pt-3 pb-4 shrink-0" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => handleDelete(selectedPhoto)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-400 font-bold text-sm active:scale-95 transition-all"
+                >
+                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                  Supprimer cette photo
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -340,33 +366,39 @@ export default function CulinaryGallery({ userId, isOwner, isCommunityFeed = fal
       {selectedPhoto && (
         <div
           className="fixed inset-0 z-50 flex flex-col bg-black/95"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           onClick={() => setSelectedPhoto(null)}
         >
-          <div className="flex items-center justify-between px-4 pt-12 pb-3" onClick={(e) => e.stopPropagation()}>
-            <div>
-              <h3 className="text-white font-bold text-lg leading-tight">{selectedPhoto.meal_name}</h3>
+          <div
+            className="flex items-center justify-between px-4 pb-3 shrink-0"
+            style={{ paddingTop: 'max(48px, env(safe-area-inset-top))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="min-w-0 flex-1">
+              <h3 className="text-white font-bold text-base leading-tight truncate">{selectedPhoto.meal_name}</h3>
               {selectedPhoto.caption && (
-                <p className="text-white/50 text-sm mt-0.5">{selectedPhoto.caption}</p>
+                <p className="text-white/50 text-sm mt-0.5 truncate">{selectedPhoto.caption}</p>
               )}
             </div>
             <button
               onClick={() => setSelectedPhoto(null)}
-              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center shrink-0 ml-2"
             >
               <span className="material-symbols-outlined text-white text-[20px]">close</span>
             </button>
           </div>
 
-          <div className="flex-1 flex items-center justify-center px-2" onClick={(e) => e.stopPropagation()}>
+          <div className="flex-1 flex items-center justify-center px-4 py-2 min-h-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <img
               src={selectedPhoto.image_url}
               alt={selectedPhoto.meal_name}
-              className="w-full max-h-full object-contain rounded-2xl"
+              className="max-w-full max-h-full object-contain rounded-2xl"
+              style={{ maxHeight: '100%' }}
             />
           </div>
 
           {isOwner && (
-            <div className="px-4 pb-10 pt-4" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 pt-3 pb-4 shrink-0" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => handleDelete(selectedPhoto)}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-red-500/20 border border-red-500/30 text-red-400 font-bold text-sm active:scale-95 transition-all"

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Meal, Screen } from '../types';
+import { Meal, Screen, CulinaryChallenge } from '../types';
 import { supabase } from '../lib/supabase';
 import {
   CATEGORY_CONFIG,
@@ -24,9 +24,17 @@ interface ExploreScreenProps {
   unreadBookings?: number;
   onEditMeal?: (meal: Meal) => void;
   onContactMember?: (hostId: string, hostName: string, hostAvatar: string) => void;
+  onNavigateToChallenges?: () => void;
 }
 
 const FALLBACK_AVATAR = 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?w=60';
+
+const CATEGORY_TABS: { key: CategoryFilter; label: string; color: string }[] = [
+  { key: 'all', label: 'Tout', color: '#374151' },
+  { key: 'homemade_meal', label: '🍽️ Repas maison', color: '#f97316' },
+  { key: 'food_rescue', label: '♻️ Anti-gaspi', color: '#16a34a' },
+  { key: 'cercle_culinaire', label: 'Cercle', color: '#b91c1c' },
+];
 
 const FILTER_STORAGE_KEY = 'shareeat_filters';
 
@@ -43,7 +51,7 @@ export default function ExploreScreen({
   onNavigate,
   unreadBookings = 0,
   onEditMeal,
-  onContactMember,
+  onNavigateToChallenges,
 }: ExploreScreenProps) {
   const storedFilters = loadStoredFilters();
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(
@@ -75,6 +83,35 @@ export default function ExploreScreen({
   const [searchQuery, setSearchQuery] = useState('');
   const [reportingMeal, setReportingMeal] = useState<Meal | null>(null);
   const [detailMeal, setDetailMeal] = useState<Meal | null>(null);
+  const [challenges, setChallenges] = useState<CulinaryChallenge[]>([]);
+  const [challengesLoading, setChallengesLoading] = useState(false);
+
+  const fetchChallenges = useCallback(async () => {
+    setChallengesLoading(true);
+    const { data } = await supabase
+      .from('culinary_challenges')
+      .select('*, creator:creator_id(id, name, avatar_url, shares_count)')
+      .neq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (!data || data.length === 0) { setChallenges([]); setChallengesLoading(false); return; }
+
+    const ids = (data as CulinaryChallenge[]).map((c) => c.id);
+    const { data: membersData } = await supabase
+      .from('culinary_challenge_members')
+      .select('challenge_id, status')
+      .in('challenge_id', ids)
+      .eq('status', 'accepted');
+
+    const countMap: Record<string, number> = {};
+    (membersData ?? []).forEach((m: { challenge_id: string }) => {
+      countMap[m.challenge_id] = (countMap[m.challenge_id] ?? 0) + 1;
+    });
+
+    setChallenges((data as CulinaryChallenge[]).map((c) => ({ ...c, member_count: countMap[c.id] ?? 0 })));
+    setChallengesLoading(false);
+  }, []);
 
   const fetchMeals = useCallback(async () => {
     setLoadError(false);
@@ -83,12 +120,13 @@ export default function ExploreScreen({
       .select('*, host:profiles!host_id(id, name, avatar_url, shares_count)')
       .or('claimed.eq.false,claimed.is.null')
       .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
+      .neq('meal_type', 'culinary_circle')
       .order('created_at', { ascending: false });
     if (error) { setLoadError(true); return; }
     if (data) setMeals((data as Meal[]).filter((m) => m.slots_taken < m.slots_total));
   }, []);
 
-  const { containerRef: scrollRef, indicatorRef } = usePullToRefresh(fetchMeals);
+  const { containerRef: scrollRef, indicatorRef } = usePullToRefresh(async () => { await fetchMeals(); await fetchChallenges(); });
 
   const toggleDiet = useCallback((tag: string) => {
     setSelectedDiets((prev) => {
@@ -150,6 +188,7 @@ export default function ExploreScreen({
 
     init();
     fetchMeals();
+    fetchChallenges();
 
     const mealsSub = supabase
       .channel('meals-slots-realtime')
@@ -179,7 +218,7 @@ export default function ExploreScreen({
       .subscribe();
 
     return () => { supabase.removeChannel(mealsSub); };
-  }, [fetchMeals]);
+  }, [fetchMeals, fetchChallenges]);
 
   async function toggleLike(chefId: string) {
     if (!currentUserId) return;
@@ -244,7 +283,7 @@ export default function ExploreScreen({
 
       if (selectedDiets.size > 0) {
         const tags = (m.allergens || []).map((a: string) => a.toLowerCase());
-        const hasAny = Array.from(selectedDiets).some((diet) => tags.includes(diet.toLowerCase()));
+        const hasAny = tags.some((tag) => selectedDiets.has(tag));
         if (!hasAny) return false;
       }
 
@@ -254,15 +293,8 @@ export default function ExploreScreen({
 
   const hasActiveFilters = selectedDiets.size > 0 || categoryFilter !== 'all';
 
-  const CATEGORY_TABS: { key: CategoryFilter; label: string; color: string }[] = [
-    { key: 'all', label: 'Tout', color: '#374151' },
-    { key: 'homemade_meal', label: '🍽️ Repas maison', color: '#f97316' },
-    { key: 'food_rescue', label: '♻️ Anti-gaspi', color: '#16a34a' },
-    { key: 'cercle_culinaire', label: 'Cercle', color: '#b45309' },
-  ];
-
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#F5F5F0] font-display">
+    <div className="flex flex-col h-app bg-[#F5F5F0] font-display">
       <header className="sticky top-0 z-20 bg-[#F5F5F0]/90 backdrop-blur-md px-6 pb-3" style={{ paddingTop: 'calc(env(safe-area-inset-top, 44px) + 12px)' }}>
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -346,6 +378,68 @@ export default function ExploreScreen({
             </div>
           </div>
         )}
+
+        {(categoryFilter === 'all' || categoryFilter === 'cercle_culinaire') && challenges.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#d97706,#92400e)' }}>
+                  <span className="material-symbols-outlined text-white text-[15px]">emoji_events</span>
+                </div>
+                <h2 className="text-base font-bold text-slate-900">Défis culinaires</h2>
+              </div>
+              <button
+                onClick={() => onNavigateToChallenges ? onNavigateToChallenges() : onNavigate('culinary')}
+                className="text-xs font-bold text-amber-700 flex items-center gap-0.5"
+              >
+                Voir tous
+                <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+              </button>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-1 hide-scrollbar">
+              {challengesLoading
+                ? [0, 1].map((i) => (
+                    <div key={i} className="shrink-0 w-52 h-28 rounded-2xl bg-slate-100 animate-pulse" />
+                  ))
+                : challenges.map((c) => {
+                    const statusLabel = c.status === 'open' ? 'Ouvert' : 'En cours';
+                    const statusColor = c.status === 'open' ? '#16a34a' : '#d97706';
+                    const spotsLeft = c.max_members - (c.member_count ?? 0);
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => onNavigateToChallenges ? onNavigateToChallenges() : onNavigate('culinary')}
+                        className="shrink-0 w-52 rounded-2xl text-left overflow-hidden border border-amber-100 shadow-sm"
+                        style={{ background: 'linear-gradient(145deg, #fffbeb, #fef3c7)' }}
+                      >
+                        <div className="p-3.5">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: statusColor }}>
+                              {statusLabel}
+                            </span>
+                            <span className="text-[10px] text-amber-700 font-semibold">
+                              {c.member_count ?? 0}/{c.max_members} membres
+                            </span>
+                          </div>
+                          <p className="text-sm font-bold text-amber-950 leading-tight line-clamp-2 mb-2">{c.title}</p>
+                          <div className="flex items-center gap-1.5">
+                            {c.creator?.avatar_url && (
+                              <img src={c.creator.avatar_url} alt={c.creator.name} className="w-5 h-5 rounded-full object-cover" />
+                            )}
+                            <p className="text-[11px] text-amber-800 truncate">{c.creator?.name}</p>
+                          </div>
+                          {spotsLeft > 0 && c.status === 'open' && (
+                            <div className="mt-2 pt-2 border-t border-amber-200">
+                              <p className="text-[10px] font-bold text-amber-700">{spotsLeft} place{spotsLeft > 1 ? 's' : ''} disponible{spotsLeft > 1 ? 's' : ''}</p>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+            </div>
+          </div>
+        )}
         {categoryFilter === 'homemade_meal' && (
           <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-4 flex items-start gap-3">
             <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
@@ -421,7 +515,7 @@ export default function ExploreScreen({
               </div>
             </div>
             <div className="bg-gradient-to-br from-amber-950/80 via-stone-900/90 to-amber-900/80 rounded-2xl p-4 mt-0">
-              <CulinaryGallery userId={currentUserId} isOwner={true} isCommunityFeed />
+              <CulinaryGallery userId={currentUserId} isOwner={true} isCommunityFeed currentUserId={currentUserId} />
             </div>
           </>
         )}
@@ -463,8 +557,6 @@ export default function ExploreScreen({
           const timing = formatMealTiming(meal.meal_date);
           const hostName = meal.host?.name || 'Utilisateur';
           const hostAvatar = meal.host?.avatar_url || FALLBACK_AVATAR;
-          const hostSharesCount = (meal.host as unknown as { shares_count?: number } | null)?.shares_count ?? 0;
-          const isTrustedCook = hostSharesCount >= 10;
           const isLiked = meal.host_id ? likedIds.has(meal.host_id) : false;
           const isOwnMeal = meal.host_id === currentUserId;
           const expiringSoon = isFoodRescue && isExpiringSoon(mealWithExtra.expires_at);
@@ -501,12 +593,6 @@ export default function ExploreScreen({
                       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                         <img src={hostAvatar} alt={hostName} className="w-5 h-5 rounded-full object-cover" />
                         <p className="text-xs text-slate-500">{hostName}</p>
-                        {isTrustedCook && (
-                          <span className="flex items-center gap-0.5 bg-amber-50 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-amber-200">
-                            <span className="material-symbols-outlined text-[10px] fill-1">emoji_food_beverage</span>
-                            Cercle
-                          </span>
-                        )}
                       </div>
                     </div>
                     {!isOwnMeal && meal.host_id && (
@@ -610,12 +696,6 @@ export default function ExploreScreen({
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                   <img src={hostAvatar} alt={hostName} className="w-6 h-6 rounded-full object-cover bg-slate-200" />
                   <p className="text-sm text-slate-500">{hostName}</p>
-                  {isTrustedCook && (
-                    <span className="flex items-center gap-0.5 bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
-                      <span className="material-symbols-outlined text-[11px] fill-1">emoji_food_beverage</span>
-                      Cercle Culinaire
-                    </span>
-                  )}
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -636,15 +716,6 @@ export default function ExploreScreen({
                       <span className="font-bold py-2.5 px-5 rounded-xl text-sm bg-slate-100 text-slate-400 cursor-default">
                         Mon repas
                       </span>
-                    ) : categoryFilter === 'cercle_culinaire' && onContactMember ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onContactMember(meal.host_id!, hostName, hostAvatar); }}
-                        className="flex items-center gap-1.5 font-bold py-2.5 px-4 rounded-xl text-sm text-white transition-all active:scale-95"
-                        style={{ background: 'linear-gradient(135deg, #92400e, #78350f)' }}
-                      >
-                        <span className="material-symbols-outlined text-[16px]">chat</span>
-                        Contacter
-                      </button>
                     ) : bookedMeals.has(meal.id) ? (
                       <span className="flex items-center gap-1 font-bold py-2.5 px-4 rounded-xl text-xs bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default">
                         <span className="material-symbols-outlined text-[14px]">check_circle</span>
@@ -669,15 +740,13 @@ export default function ExploreScreen({
         {filteredMeals.length === 0 && meals.length > 0 && categoryFilter !== 'cercle_culinaire' && (
           <div className="text-center py-16">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-              {categoryFilter === 'food_rescue' ? '♻️' : categoryFilter === 'cercle_culinaire' ? '👨‍🍳' : '🍽️'}
+              {categoryFilter === 'food_rescue' ? '♻️' : '🍽️'}
             </div>
             <p className="font-bold text-slate-700 text-lg">Aucune annonce</p>
             <p className="text-sm text-slate-400 mt-1">
               {categoryFilter === 'food_rescue'
                 ? "Pas d'aliments à sauver pour l'instant"
-                : categoryFilter === 'cercle_culinaire'
-                  ? 'Aucun chef du Cercle Culinaire disponible pour l\'instant'
-                  : 'Pas de repas maison disponibles'}
+                : 'Pas de repas maison disponibles'}
             </p>
             {hasActiveFilters && (
               <button
@@ -764,7 +833,7 @@ export default function ExploreScreen({
                     { label: 'Sans porc', icon: '🐷' },
                     { label: 'Halal', icon: '☪' },
                     { label: 'Casher', icon: '✡' },
-                    { label: 'Sans oeuf', icon: '🥚' },
+                    { label: 'Sans œuf', icon: '🥚' },
                     { label: 'Sans soja', icon: '🫘' },
                     { label: 'Sans fruits de mer', icon: '🦐' },
                     { label: 'Sans arachide', icon: '🥜' },

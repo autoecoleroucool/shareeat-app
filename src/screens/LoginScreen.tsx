@@ -42,13 +42,15 @@ export default function LoginScreen() {
   };
 
   return (
-    <div className="h-[100dvh] bg-[#f6f8f6] flex flex-col items-center justify-center px-6" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <div className="h-app bg-[#f6f8f6] flex flex-col items-center justify-center px-6" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
           <div className="flex items-center justify-center mb-2">
             <img
               src="/Logo_ShareEat_eco_et_alimentation.png"
               alt="ShareEat"
+              width="176"
+              height="176"
               className="h-44 w-auto object-contain drop-shadow-lg"
             />
           </div>

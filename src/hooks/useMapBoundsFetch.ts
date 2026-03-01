@@ -27,6 +27,7 @@ interface CacheEntry {
 
 const CACHE_TTL_MS = 30_000;
 const BOUNDS_CHANGE_THRESHOLD = 0.20;
+const MAX_CACHE_ENTRIES = 5;
 
 function boundsArea(b: L.LatLngBounds): number {
   return (b.getNorth() - b.getSouth()) * (b.getEast() - b.getWest());
@@ -55,20 +56,20 @@ export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2
 }
 
 export function useMapBoundsFetch(onMealsLoaded: (meals: MapMeal[]) => void) {
-  const cacheRef = useRef<CacheEntry | null>(null);
+  const cacheRef = useRef<CacheEntry[]>([]);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchBounds = useCallback(async (bounds: L.LatLngBounds) => {
     const now = Date.now();
-    const cached = cacheRef.current;
+    const entries = cacheRef.current;
 
-    if (cached && now - cached.fetchedAt < CACHE_TTL_MS) {
-      const overlap = boundsOverlapRatio(cached.bounds, bounds);
-      if (overlap > (1 - BOUNDS_CHANGE_THRESHOLD)) {
-        onMealsLoaded(cached.meals);
-        return;
-      }
+    const validEntry = entries.find(
+      (e) => now - e.fetchedAt < CACHE_TTL_MS && boundsOverlapRatio(e.bounds, bounds) > (1 - BOUNDS_CHANGE_THRESHOLD)
+    );
+    if (validEntry) {
+      onMealsLoaded(validEntry.meals);
+      return;
     }
 
     if (abortControllerRef.current) {
@@ -87,7 +88,8 @@ export function useMapBoundsFetch(onMealsLoaded: (meals: MapMeal[]) => void) {
       .lte('location_lat', ne.lat + padding)
       .gte('location_lng', sw.lng - padding)
       .lte('location_lng', ne.lng + padding)
-      .or('claimed.eq.false,claimed.is.null');
+      .or('claimed.eq.false,claimed.is.null')
+      .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString());
 
     if (error) return;
 
@@ -102,7 +104,8 @@ export function useMapBoundsFetch(onMealsLoaded: (meals: MapMeal[]) => void) {
       }))
       .filter((m) => !isNaN(m.location_lat) && !isNaN(m.location_lng));
 
-    cacheRef.current = { bounds, meals, fetchedAt: Date.now() };
+    const newEntry: CacheEntry = { bounds, meals, fetchedAt: Date.now() };
+    cacheRef.current = [newEntry, ...cacheRef.current].slice(0, MAX_CACHE_ENTRIES);
     onMealsLoaded(meals);
   }, [onMealsLoaded]);
 
@@ -116,7 +119,7 @@ export function useMapBoundsFetch(onMealsLoaded: (meals: MapMeal[]) => void) {
   }, [fetchBounds]);
 
   const invalidateCache = useCallback(() => {
-    cacheRef.current = null;
+    cacheRef.current = [];
   }, []);
 
   return { scheduleFetch, invalidateCache };

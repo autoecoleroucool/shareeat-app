@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { getCurrentPosition, reverseGeocode as geocode } from '../lib/geolocation';
 
 interface LocationPickerProps {
   lat: number;
@@ -49,7 +50,7 @@ export default function LocationPicker({ lat, lng, name, onConfirm, onClose }: L
       const pos = marker.getLatLng();
       setCurrentLat(pos.lat);
       setCurrentLng(pos.lng);
-      const resolved = await reverseGeocode(pos.lat, pos.lng);
+      const resolved = await geocode(pos.lat, pos.lng);
       setCurrentName(resolved);
     });
 
@@ -57,7 +58,7 @@ export default function LocationPicker({ lat, lng, name, onConfirm, onClose }: L
       marker.setLatLng(e.latlng);
       setCurrentLat(e.latlng.lat);
       setCurrentLng(e.latlng.lng);
-      const resolved = await reverseGeocode(e.latlng.lat, e.latlng.lng);
+      const resolved = await geocode(e.latlng.lat, e.latlng.lng);
       setCurrentName(resolved);
     });
 
@@ -66,44 +67,18 @@ export default function LocationPicker({ lat, lng, name, onConfirm, onClose }: L
     };
   }, []);
 
-  async function reverseGeocode(lat: number, lng: number): Promise<string> {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-        { headers: { 'Accept-Language': 'fr' } }
-      );
-      const data = await res.json();
-      const addr = data.address;
-      if (addr) {
-        const parts = [
-          addr.road || addr.pedestrian || addr.footway,
-          addr.city || addr.town || addr.village || addr.municipality,
-        ].filter(Boolean);
-        if (parts.length) return parts.join(', ');
-      }
-      return data.display_name?.split(',').slice(0, 2).join(',') || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    } catch {
-      return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    }
-  }
-
   async function handleLocate() {
-    if (!navigator.geolocation) return;
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setCurrentLat(latitude);
-        setCurrentLng(longitude);
-        mapRef.current?.setView([latitude, longitude], 16);
-        markerRef.current?.setLatLng([latitude, longitude]);
-        const resolved = await reverseGeocode(latitude, longitude);
-        setCurrentName(resolved);
-        setLocating(false);
-      },
-      () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+    const pos = await getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+    if (pos) {
+      setCurrentLat(pos.latitude);
+      setCurrentLng(pos.longitude);
+      mapRef.current?.setView([pos.latitude, pos.longitude], 16);
+      markerRef.current?.setLatLng([pos.latitude, pos.longitude]);
+      const resolved = await geocode(pos.latitude, pos.longitude);
+      setCurrentName(resolved);
+    }
+    setLocating(false);
   }
 
   return (
@@ -125,7 +100,7 @@ export default function LocationPicker({ lat, lng, name, onConfirm, onClose }: L
           onClick={handleLocate}
           disabled={locating}
           style={{
-            position: 'absolute', top: 12, right: 12, zIndex: 20,
+            position: 'absolute', top: 12, right: 12, zIndex: 1000,
             width: 40, height: 40, background: 'white',
             border: 'none', borderRadius: '50%',
             boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
@@ -140,7 +115,7 @@ export default function LocationPicker({ lat, lng, name, onConfirm, onClose }: L
         </button>
 
         <div style={{
-          position: 'absolute', bottom: 12, left: 12, right: 12, zIndex: 20,
+          position: 'absolute', bottom: 12, left: 12, right: 12, zIndex: 1000,
           background: 'white', borderRadius: 16, padding: '12px 16px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
           display: 'flex', alignItems: 'center', gap: 10,

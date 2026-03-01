@@ -30,7 +30,7 @@ export default function BlockedUsersModal({ onClose }: BlockedUsersModalProps) {
         .select('id, blocked_id, profiles:blocked_id(name, avatar_url)')
         .eq('blocker_id', user.id)
         .order('created_at', { ascending: false });
-      if (data) setBlocked(data as BlockedUser[]);
+      if (data) setBlocked(data as unknown as BlockedUser[]);
       setLoading(false);
     }
     load();

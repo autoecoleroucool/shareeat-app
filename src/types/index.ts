@@ -69,8 +69,8 @@ export interface Conversation {
   meal_id: string | null;
   host_id: string;
   guest_id: string;
-  last_message_at: string;
-  last_message_text: string;
+  last_message_at: string | null;
+  last_message_text: string | null;
   created_at: string;
   other_profile: { id: string; name: string; avatar_url: string } | null;
   meal_title: string | null;
@@ -129,8 +129,10 @@ export interface CulinaryPhoto {
   caption: string;
   meal_name: string;
   likes_count: number;
+  challenge_id: string | null;
   created_at: string;
   author?: { id: string; name: string; avatar_url: string };
+  challenge?: { id: string; title: string } | null;
 }
 
 export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'next_time';
@@ -151,7 +153,7 @@ export interface CulinaryInvitation {
   guest?: { id: string; name: string; avatar_url: string };
 }
 
-export type ChallengeStatus = 'open' | 'active' | 'completed';
+export type ChallengeStatus = 'open' | 'active' | 'completed' | 'closed';
 export type ChallengeMemberStatus = 'pending' | 'accepted' | 'declined';
 export type ChallengeMealStatus = 'planned' | 'done';
 
@@ -163,11 +165,17 @@ export interface CulinaryChallenge {
   status: ChallengeStatus;
   min_members: number;
   max_members: number;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_name?: string | null;
   created_at: string;
   updated_at: string;
   creator?: { id: string; name: string; avatar_url: string; shares_count: number };
   members?: CulinaryChallengeMember[];
   member_count?: number;
+  pending_count?: number;
+  my_status?: string | null;
+  my_invited_by?: string | null;
 }
 
 export interface CulinaryChallengeMember {

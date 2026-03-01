@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Screen } from '../types';
 import { supabase } from '../lib/supabase';
+import { getCurrentPosition, reverseGeocode } from '../lib/geolocation';
 import LocationPicker from '../components/LocationPicker';
 
 interface EditMealData {
@@ -80,7 +81,7 @@ export default function CreateMealScreen({ onNavigate, editMeal }: CreateMealScr
   const [isPremium, setIsPremium] = useState(false);
   const [geolocating, setGeolocating] = useState(false);
   const [safetyConfirmed, setSafetyConfirmed] = useState(isEditing);
-  const [draftSaved, setDraftSaved] = useState(false);
+  const draftSaved = false;
   const imagePreviewRef = useRef<string>('');
   const DRAFT_KEY = 'shareeat_meal_draft';
 
@@ -95,36 +96,16 @@ export default function CreateMealScreen({ onNavigate, editMeal }: CreateMealScr
 
   useEffect(() => {
     if (isEditing) return;
-    if (!navigator.geolocation) return;
     setGeolocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setLocationLat(latitude);
-        setLocationLng(longitude);
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
-            { headers: { 'Accept-Language': 'fr' } }
-          );
-          const data = await res.json();
-          const addr = data.address;
-          if (addr) {
-            const parts = [
-              addr.road || addr.pedestrian || addr.footway,
-              addr.city || addr.town || addr.village || addr.municipality,
-            ].filter(Boolean);
-            if (parts.length) setLocationName(parts.join(', '));
-          }
-        } catch {
-          // keep default
-        } finally {
-          setGeolocating(false);
-        }
-      },
-      () => setGeolocating(false),
-      { enableHighAccuracy: false, timeout: 5000 }
-    );
+    getCurrentPosition({ enableHighAccuracy: false, timeout: 10000 }).then(async (pos) => {
+      if (pos) {
+        setLocationLat(pos.latitude);
+        setLocationLng(pos.longitude);
+        const name = await reverseGeocode(pos.latitude, pos.longitude);
+        if (name) setLocationName(name);
+      }
+      setGeolocating(false);
+    });
   }, [isEditing]);
 
   useEffect(() => {
@@ -347,7 +328,7 @@ export default function CreateMealScreen({ onNavigate, editMeal }: CreateMealScr
 
   if (success) {
     return (
-      <div className="flex flex-col h-[100dvh] bg-white items-center justify-center gap-4 font-display">
+      <div className="flex flex-col h-app bg-white items-center justify-center gap-4 font-display">
         <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
           <span className="material-symbols-outlined text-[#16a34a] text-[40px]">{isEditing ? 'check_circle' : (listingMode === 'food_rescue' ? 'recycling' : 'check_circle')}</span>
         </div>
@@ -367,7 +348,7 @@ export default function CreateMealScreen({ onNavigate, editMeal }: CreateMealScr
   ];
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-white font-display overflow-x-hidden">
+    <div className="flex flex-col h-app bg-white font-display overflow-x-hidden">
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md px-6 pb-4 flex items-center justify-between border-b border-slate-50" style={{ paddingTop: 'calc(env(safe-area-inset-top, 44px) + 12px)' }}>
         <button
           onClick={() => onNavigate(isEditing ? 'profile' : 'explore')}

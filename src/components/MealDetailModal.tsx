@@ -93,7 +93,7 @@ const MealDetailModal = memo(function MealDetailModal({
       .order('created_at', { ascending: false })
       .limit(20)
       .then(({ data, count }) => {
-        setReviews((data as Review[]) ?? []);
+        setReviews((data as unknown as Review[]) ?? []);
         setTotalReviewCount(count ?? 0);
         setLoadingReviews(false);
       });

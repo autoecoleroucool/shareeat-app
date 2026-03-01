@@ -39,10 +39,14 @@ interface PendingToast {
 
 function ScreenLoader() {
   return (
-    <div className="w-full flex items-center justify-center" style={{ height: '100dvh' }}>
+    <div className="w-full flex items-center justify-center h-app">
       <div className="w-8 h-8 rounded-full border-2 border-[#49e619] border-t-transparent animate-spin" />
     </div>
   );
+}
+
+function setAppHeight() {
+  document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
 }
 
 export default function App() {
@@ -51,6 +55,7 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [editMeal, setEditMeal] = useState<EditMealData | null>(null);
   const [openConversationId, setOpenConversationId] = useState<string | null>(null);
+  const [culinaryInitialTab, setCulinaryInitialTab] = useState<'feed' | 'challenges' | null>(null);
 
   const [unreadBookings, setUnreadBookings] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -59,6 +64,12 @@ export default function App() {
   const screenRef = useRef<Screen>('map');
   const activeConvIdRef = useRef<string | null>(null);
   const loadUnreadMessagesRef = useRef<(() => Promise<void>) | null>(null);
+
+  useEffect(() => {
+    setAppHeight();
+    window.addEventListener('resize', setAppHeight);
+    return () => window.removeEventListener('resize', setAppHeight);
+  }, []);
 
   useEffect(() => { screenRef.current = screen; }, [screen]);
 
@@ -322,7 +333,7 @@ export default function App() {
 
   if (!session) {
     return (
-      <div className="w-full" style={{ height: '100dvh' }}>
+      <div className="w-full h-app">
         <Suspense fallback={<ScreenLoader />}>
           <LoginScreen />
         </Suspense>
@@ -331,10 +342,18 @@ export default function App() {
   }
 
   return (
-    <div className="w-full relative overflow-hidden" style={{ height: '100dvh' }}>
+    <div className="w-full relative overflow-hidden h-app">
       <Suspense fallback={<ScreenLoader />}>
         {screen === 'map' && (
-          <MapScreen activeScreen={screen} onNavigate={handleNavigate} unreadBookings={unreadBookings + unreadMessages} />
+          <MapScreen
+            activeScreen={screen}
+            onNavigate={handleNavigate}
+            unreadBookings={unreadBookings + unreadMessages}
+            onNavigateToChallenges={() => {
+              setCulinaryInitialTab('challenges');
+              handleNavigate('culinary');
+            }}
+          />
         )}
         {screen === 'explore' && (
           <ExploreScreen
@@ -342,6 +361,10 @@ export default function App() {
             onNavigate={handleNavigate}
             unreadBookings={unreadBookings + unreadMessages}
             onContactMember={handleContactMember}
+            onNavigateToChallenges={() => {
+              setCulinaryInitialTab('challenges');
+              handleNavigate('culinary');
+            }}
             onEditMeal={(meal) => {
               setEditMeal({
                 id: meal.id,
@@ -404,6 +427,8 @@ export default function App() {
             onNavigate={handleNavigate}
             unreadBookings={unreadBookings + unreadMessages}
             onContactMember={handleContactMember}
+            initialTab={culinaryInitialTab ?? undefined}
+            onInitialTabConsumed={() => setCulinaryInitialTab(null)}
           />
         )}
         {screen === 'settings' && (

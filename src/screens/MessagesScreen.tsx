@@ -96,6 +96,7 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
   const [deletingMsgId, setDeletingMsgId] = useState<string | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const activeConvRef = useRef<Conversation | null>(null);
   const userIdRef = useRef<string | null>(null);
@@ -109,6 +110,7 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
       }
     });
     return () => {
+      mountedRef.current = false;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       if (localTypingTimeoutRef.current) clearTimeout(localTypingTimeoutRef.current);
     };
@@ -163,7 +165,7 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
       guest: { id: string; name: string; avatar_url: string } | null;
       meal: { title: string } | null;
     };
-    const convs: Conversation[] = (filtered as RawConv[]).map((c) => {
+    const convs: Conversation[] = (filtered as unknown as RawConv[]).map((c) => {
       const isHost = c.host_id === uid;
       const other = isHost ? c.guest : c.host;
       const otherId = isHost ? c.guest_id : c.host_id;
@@ -219,13 +221,12 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
           setConversations((prev) => {
             const exists = prev.some((c) => c.id === updated.id);
             if (!exists) { loadConversations(); return prev; }
-            const reordered = prev.map((c) =>
+            return prev.map((c) =>
               c.id === updated.id
                 ? { ...c, last_message_text: updated.last_message_text, last_message_at: updated.last_message_at,
                     unread_by_me: (activeConvRef.current?.id === c.id || !uid || c.host_id === uid) ? c.unread_by_me : c.unread_by_me + 1 }
                 : c
-            ).sort((a, b) => new Date(b.last_message_at ?? b.created_at).getTime() - new Date(a.last_message_at ?? a.created_at).getTime());
-            return reordered;
+            ).sort((a, b) => new Date(b.last_message_at ?? b.created_at).getTime() - new Date(a.last_message_at ?? a.created_at).getTime()) as Conversation[];
           });
         }
       )
@@ -238,13 +239,12 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
           setConversations((prev) => {
             const exists = prev.some((c) => c.id === updated.id);
             if (!exists) { loadConversations(); return prev; }
-            const reordered = prev.map((c) =>
+            return prev.map((c) =>
               c.id === updated.id
                 ? { ...c, last_message_text: updated.last_message_text, last_message_at: updated.last_message_at,
                     unread_by_me: (activeConvRef.current?.id === c.id || !uid || c.guest_id === uid) ? c.unread_by_me : c.unread_by_me + 1 }
                 : c
-            ).sort((a, b) => new Date(b.last_message_at ?? b.created_at).getTime() - new Date(a.last_message_at ?? a.created_at).getTime());
-            return reordered;
+            ).sort((a, b) => new Date(b.last_message_at ?? b.created_at).getTime() - new Date(a.last_message_at ?? a.created_at).getTime()) as Conversation[];
           });
         }
       )
@@ -309,7 +309,7 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
         if (senderId && senderId !== userIdRef.current) {
           setOtherTyping(true);
           if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-          typingTimeoutRef.current = setTimeout(() => setOtherTyping(false), 3000);
+          typingTimeoutRef.current = setTimeout(() => { if (mountedRef.current) setOtherTyping(false); }, 3000);
         }
       })
       .on(
@@ -556,7 +556,7 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
     const isBlocked = activeConv.is_blocked;
 
     return (
-      <div className="flex flex-col h-[100dvh] bg-[#f2f4f2] font-display">
+      <div className="flex flex-col h-app bg-[#f2f4f2] font-display">
         <header
           className="sticky top-0 z-20 bg-white px-4 pb-3 flex items-center gap-3 border-b border-slate-100 shadow-sm"
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 44px) + 10px)' }}
@@ -946,7 +946,7 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#f2f4f2] font-display">
+    <div className="flex flex-col h-app bg-[#f2f4f2] font-display">
       <header
         className="bg-white px-6 pb-5 border-b border-slate-100 shadow-sm"
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 44px) + 12px)' }}
