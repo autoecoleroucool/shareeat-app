@@ -195,7 +195,7 @@ const MealDetailModal = memo(function MealDetailModal({
             {meal.host && (
               <div className="flex items-center gap-3 bg-slate-50 rounded-2xl p-3">
                 {meal.host.avatar_url ? (
-                  <img src={meal.host.avatar_url} alt={meal.host.name} className="w-10 h-10 rounded-full object-cover" loading="lazy" decoding="async" />
+                  <img src={meal.host.avatar_url} alt={meal.host.name} className="w-10 h-10 rounded-full object-cover" />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
                     <span className="material-symbols-outlined text-slate-400 text-[20px]">person</span>
@@ -320,7 +320,7 @@ const MealDetailModal = memo(function MealDetailModal({
                     <div key={rev.id} className="bg-slate-50 rounded-2xl p-3">
                       <div className="flex items-center gap-2 mb-1.5">
                         {rev.reviewer?.avatar_url ? (
-                          <img src={rev.reviewer.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" loading="lazy" decoding="async" />
+                          <img src={rev.reviewer.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
                         ) : (
                           <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center">
                             <span className="text-[11px] font-bold text-slate-500">

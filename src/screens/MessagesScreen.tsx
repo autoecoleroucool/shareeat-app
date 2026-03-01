@@ -570,7 +570,7 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
 
           <div className="relative">
             {activeConv.other_profile?.avatar_url ? (
-              <img src={activeConv.other_profile.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" loading="lazy" decoding="async" />
+              <img src={activeConv.other_profile.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
                 <span className="text-white text-sm font-bold">

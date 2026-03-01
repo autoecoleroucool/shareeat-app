@@ -67,7 +67,7 @@ export default function BlockedUsersModal({ onClose }: BlockedUsersModalProps) {
             {blocked.map((record) => (
               <div key={record.id} className="flex items-center gap-4 py-3 border-b border-slate-50 last:border-0">
                 {record.profiles.avatar_url ? (
-                  <img src={record.profiles.avatar_url} alt={record.profiles.name} className="w-11 h-11 rounded-full object-cover shrink-0" loading="lazy" decoding="async" />
+                  <img src={record.profiles.avatar_url} alt={record.profiles.name} className="w-11 h-11 rounded-full object-cover shrink-0" />
                 ) : (
                   <div className="w-11 h-11 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
                     <span className="material-symbols-outlined text-slate-400 text-[22px]">person</span>
