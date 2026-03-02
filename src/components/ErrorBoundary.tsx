@@ -35,6 +35,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
+    this.handleReload = this.handleReload.bind(this);
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
