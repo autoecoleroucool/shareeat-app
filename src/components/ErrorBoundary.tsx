@@ -9,58 +9,24 @@ interface State {
   error: Error | null;
 }
 
-function isChunkLoadError(error: Error): boolean {
-  const msg = error.message?.toLowerCase() ?? '';
-  return (
-    msg.includes('mime type') ||
-    msg.includes('dynamically imported') ||
-    msg.includes('failed to fetch dynamically') ||
-    msg.includes('loading chunk') ||
-    msg.includes('loading css chunk') ||
-    msg.includes('unexpected token') ||
-    (error.name === 'TypeError' && msg.includes('import'))
-  );
-}
-
-function forceReload() {
-  try {
-    const url = window.location.origin + window.location.pathname + '?_=' + Date.now();
-    window.location.replace(url);
-  } catch {
-    window.location.reload();
-  }
-}
-
 export default class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
-    this.handleReload = this.handleReload.bind(this);
   }
 
-  static getDerivedStateFromError(error: Error): Partial<State> {
+  static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  componentDidUpdate(_: Props, prevState: State) {
-    if (
-      this.state.hasError &&
-      !prevState.hasError &&
-      this.state.error &&
-      isChunkLoadError(this.state.error)
-    ) {
-      forceReload();
-    }
-  }
-
   handleReload() {
-    forceReload();
+    window.location.reload();
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center h-screen bg-white px-8 font-display">
+        <div className="flex flex-col items-center justify-center h-app bg-white px-8 font-display">
           <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mb-5">
             <span className="material-symbols-outlined text-red-400 text-[40px]">error_outline</span>
           </div>

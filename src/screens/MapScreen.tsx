@@ -116,15 +116,6 @@ function getCachedPinIcon(category: 'food_rescue' | 'homemade_meal', selected: b
   return pinIconCache.get(key)!;
 }
 
-const challengePinCache = new Map<string, L.DivIcon>();
-function getCachedChallengePinIcon(selected: boolean): L.DivIcon {
-  const key = selected ? 'selected' : 'default';
-  if (!challengePinCache.has(key)) {
-    challengePinCache.set(key, makeChallengePinIcon(selected));
-  }
-  return challengePinCache.get(key)!;
-}
-
 export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0, onNavigateToChallenges }: MapScreenProps) {
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -155,21 +146,22 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
   const fetchChallenges = useCallback(async () => {
     const { data } = await supabase
       .from('culinary_challenges')
-      .select(`
-        id, title, description, status, min_members, max_members,
-        location_lat, location_lng, location_name, created_at, updated_at, creator_id,
-        creator:creator_id(id, name, avatar_url),
-        members:culinary_challenge_members(challenge_id)
-      `)
+      .select('*, creator:creator_id(id, name, avatar_url)')
       .in('status', ['open', 'active'])
-      .eq('culinary_challenge_members.status', 'accepted')
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(10);
     if (!data || data.length === 0) { setChallenges([]); return; }
-    setChallenges((data as unknown as (CulinaryChallenge & { members: { challenge_id: string }[] })[]).map((c) => ({
-      ...c,
-      member_count: Array.isArray(c.members) ? c.members.length : 0,
-    })));
+    const ids = (data as CulinaryChallenge[]).map((c) => c.id);
+    const { data: membersData } = await supabase
+      .from('culinary_challenge_members')
+      .select('challenge_id')
+      .in('challenge_id', ids)
+      .eq('status', 'accepted');
+    const countMap: Record<string, number> = {};
+    (membersData ?? []).forEach((m: { challenge_id: string }) => {
+      countMap[m.challenge_id] = (countMap[m.challenge_id] ?? 0) + 1;
+    });
+    setChallenges((data as CulinaryChallenge[]).map((c) => ({ ...c, member_count: countMap[c.id] ?? 0 })));
   }, []);
 
   useEffect(() => {
@@ -246,9 +238,6 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
     });
 
     return () => {
-      challengeMarkersRef.current.forEach((m) => m.remove());
-      challengeMarkersRef.current.clear();
-      markerMapRef.current.clear();
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -346,27 +335,25 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
 
     challenges.forEach((c) => {
       if (c.location_lat == null || c.location_lng == null) return;
-      if (challengeMarkersRef.current.has(c.id)) return;
-      const marker = L.marker([c.location_lat, c.location_lng], {
-        icon: getCachedChallengePinIcon(false),
-        zIndexOffset: 0,
-      }).addTo(map);
-      marker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
-        setSelectedChallengeId(c.id);
-        map.panTo([c.location_lat!, c.location_lng!]);
-      });
-      challengeMarkersRef.current.set(c.id, marker);
+      const isSelected = c.id === selectedChallengeId;
+      const existing = challengeMarkersRef.current.get(c.id);
+      if (existing) {
+        existing.setIcon(makeChallengePinIcon(isSelected));
+        existing.setZIndexOffset(isSelected ? 1000 : 0);
+      } else {
+        const marker = L.marker([c.location_lat, c.location_lng], {
+          icon: makeChallengePinIcon(isSelected),
+          zIndexOffset: isSelected ? 1000 : 0,
+        }).addTo(map);
+        marker.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          setSelectedChallengeId(c.id);
+          map.panTo([c.location_lat!, c.location_lng!]);
+        });
+        challengeMarkersRef.current.set(c.id, marker);
+      }
     });
-  }, [challenges, categoryFilter]);
-
-  useEffect(() => {
-    challengeMarkersRef.current.forEach((marker, id) => {
-      const isSelected = id === selectedChallengeId;
-      marker.setIcon(getCachedChallengePinIcon(isSelected));
-      marker.setZIndexOffset(isSelected ? 1000 : 0);
-    });
-  }, [selectedChallengeId]);
+  }, [challenges, categoryFilter, selectedChallengeId]);
 
   const handleJoin = async () => {
     const selected = meals.find((m) => m.id === selectedId) ?? null;

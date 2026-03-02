@@ -1,19 +1,11 @@
-const CACHE_NAME = 'shareeat-v2';
+const CACHE_NAME = 'shareeat-v1';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    }).then(() => clients.claim())
-  );
+  event.waitUntil(clients.claim());
 });
 
 self.addEventListener('push', (event) => {
