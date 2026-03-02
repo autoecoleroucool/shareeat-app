@@ -71,7 +71,7 @@ export default function CulinaryInvitationModal({ currentUserId, onClose }: Prop
     const ids = profiles.map((p: { id: string }) => p.id);
     const { data: photos } = await supabase
       .from('culinary_circle_photos')
-      .select('*')
+      .select('id, user_id, image_url, caption, meal_name, likes_count, challenge_id, created_at')
       .in('user_id', ids)
       .order('created_at', { ascending: false });
 
@@ -528,7 +528,7 @@ function InvitationDetail({
     if (!invitation.host_id) return;
     supabase
       .from('culinary_circle_photos')
-      .select('*')
+      .select('id, user_id, image_url, caption, meal_name, likes_count, challenge_id, created_at')
       .eq('user_id', invitation.host_id)
       .order('created_at', { ascending: false })
       .limit(6)

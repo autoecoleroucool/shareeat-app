@@ -194,7 +194,7 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
     const ids = profiles.map((p: { id: string }) => p.id);
     const { data: photos } = await supabase
       .from('culinary_circle_photos')
-      .select('*')
+      .select('id, user_id, image_url, caption, meal_name, likes_count, challenge_id, created_at')
       .in('user_id', ids)
       .order('created_at', { ascending: false });
 
@@ -1726,7 +1726,7 @@ function MyGalleryTab({
               onClick={() => onSelectPhoto(photo)}
               className="aspect-square relative rounded-xl overflow-hidden active:scale-95 transition-all"
             >
-              <img src={photo.image_url} alt={photo.meal_name} className="w-full h-full object-cover" />
+              <img src={photo.image_url} alt={photo.meal_name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
               {photo.challenge_id && (
                 <div className="absolute top-1 right-1 w-5 h-5 bg-amber-500/80 rounded-full flex items-center justify-center">
                   <span className="material-symbols-outlined text-white text-[11px] fill-1">emoji_events</span>
@@ -1872,7 +1872,7 @@ function InvitationDetailSheet({
     if (!invitation.host_id) return;
     supabase
       .from('culinary_circle_photos')
-      .select('*')
+      .select('id, user_id, image_url, caption, meal_name, likes_count, challenge_id, created_at')
       .eq('user_id', invitation.host_id)
       .order('created_at', { ascending: false })
       .limit(6)
@@ -1917,7 +1917,7 @@ function InvitationDetailSheet({
             {hostPhotos.map((ph, i) => (
               <button key={ph.id} onClick={() => setActiveIdx(i)}
                 className={`shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all ${i === activeIdx ? 'border-amber-400' : 'border-transparent'}`}>
-                <img src={ph.image_url} alt="" className="w-full h-full object-cover" />
+                <img src={ph.image_url} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
               </button>
             ))}
           </div>

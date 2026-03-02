@@ -1,6 +1,7 @@
 import { useRef, useCallback } from 'react';
 import L from 'leaflet';
 import { supabase } from '../lib/supabase';
+import { haversineDistance } from '../lib/mealUtils';
 
 interface MapMeal {
   id: string;
@@ -43,17 +44,7 @@ function boundsOverlapRatio(a: L.LatLngBounds, b: L.LatLngBounds): number {
   return intersection / Math.max(areaA, areaB);
 }
 
-export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+export { haversineDistance };
 
 export function useMapBoundsFetch(onMealsLoaded: (meals: MapMeal[]) => void) {
   const cacheRef = useRef<CacheEntry[]>([]);

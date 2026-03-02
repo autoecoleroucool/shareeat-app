@@ -81,10 +81,16 @@ export default function ExploreScreen({
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserIsPremium, setCurrentUserIsPremium] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [reportingMeal, setReportingMeal] = useState<Meal | null>(null);
   const [detailMeal, setDetailMeal] = useState<Meal | null>(null);
   const [challenges, setChallenges] = useState<CulinaryChallenge[]>([]);
   const [challengesLoading, setChallengesLoading] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   const fetchChallenges = useCallback(async () => {
     setChallengesLoading(true);
@@ -265,8 +271,8 @@ export default function ExploreScreen({
     return meals.filter((m) => {
       if (m.host_id && m.host_id !== currentUserId && blockedHostIds.has(m.host_id)) return false;
 
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+      if (debouncedSearchQuery.trim()) {
+        const q = debouncedSearchQuery.toLowerCase();
         const title = m.title?.toLowerCase() || '';
         const desc = m.description?.toLowerCase() || '';
         const loc = m.location_name?.toLowerCase() || '';
@@ -289,7 +295,7 @@ export default function ExploreScreen({
 
       return true;
     });
-  }, [meals, searchQuery, categoryFilter, selectedDiets, blockedHostIds, currentUserId]);
+  }, [meals, debouncedSearchQuery, categoryFilter, selectedDiets, blockedHostIds, currentUserId]);
 
   const hasActiveFilters = selectedDiets.size > 0 || categoryFilter !== 'all';
 
