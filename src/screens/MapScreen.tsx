@@ -43,21 +43,42 @@ const BOTTOM_NAV_HEIGHT = 90;
 function makePinIcon(category: 'food_rescue' | 'homemade_meal' | 'culinary_circle', selected: boolean, isTrustedCook = false) {
   const s = selected ? 52 : 42;
 
+  if (isTrustedCook) {
+    const pinColor = 'linear-gradient(135deg,#b91c1c,#7f1d1d)';
+    const borderColor = '#fca5a5';
+    const shadowColor = '#b91c1c';
+    const pinEmoji = '☕';
+    return L.divIcon({
+      className: '',
+      html: `<div style="position:relative;width:${s}px;height:${s}px;">
+        <div style="
+          width:${s}px;height:${s}px;
+          border-radius:50% 50% 50% 0;
+          transform:rotate(-45deg);
+          background:${pinColor};
+          border:3px solid ${borderColor};
+          box-shadow:0 4px 14px ${shadowColor}88;
+          display:flex;align-items:center;justify-content:center;
+        ">
+          <span style="transform:rotate(45deg);font-size:${selected ? 21 : 17}px;line-height:1;">${pinEmoji}</span>
+        </div>
+      </div>`,
+      iconSize: [s, s],
+      iconAnchor: [s / 2, s],
+      popupAnchor: [0, -s],
+    });
+  }
+
   const { color, emoji } = CATEGORY_CONFIG[category];
-  const borderColor = isTrustedCook ? '#fbbf24' : 'white';
-  const badgeHtml = isTrustedCook
-    ? `<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:#fbbf24;border:2px solid white;display:flex;align-items:center;justify-content:center;font-size:7px;z-index:1;">★</div>`
-    : '';
   return L.divIcon({
     className: '',
     html: `<div style="position:relative;width:${s}px;height:${s}px;">
-      ${badgeHtml}
       <div style="
         width:${s}px;height:${s}px;
         border-radius:50% 50% 50% 0;
         transform:rotate(-45deg);
         background:${color};
-        border:3px solid ${borderColor};
+        border:3px solid white;
         box-shadow:0 4px 14px ${color}88;
         display:flex;align-items:center;justify-content:center;
       ">
