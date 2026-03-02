@@ -70,6 +70,29 @@ function makePinIcon(category: 'food_rescue' | 'homemade_meal', selected: boolea
   });
 }
 
+function makeChallengePinIcon(selected: boolean) {
+  const s = selected ? 56 : 44;
+  return L.divIcon({
+    className: '',
+    html: `<div style="position:relative;width:${s}px;height:${s}px;">
+      <div style="
+        width:${s}px;height:${s}px;
+        border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg);
+        background:linear-gradient(135deg,#b91c1c,#7f1d1d);
+        border:3px solid white;
+        box-shadow:0 4px 14px rgba(185,28,28,0.55);
+        display:flex;align-items:center;justify-content:center;
+      ">
+        <span style="transform:rotate(45deg);font-size:${selected ? 23 : 19}px;line-height:1;">🏆</span>
+      </div>
+    </div>`,
+    iconSize: [s, s],
+    iconAnchor: [s / 2, s],
+    popupAnchor: [0, -s],
+  });
+}
+
 function makeUserIcon() {
   return L.divIcon({
     className: '',
@@ -117,6 +140,8 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [blockedHostIds, setBlockedHostIds] = useState<Set<string>>(new Set());
   const [challenges, setChallenges] = useState<CulinaryChallenge[]>([]);
+  const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
+  const challengeMarkersRef = useRef<Map<string, L.Marker>>(new Map());
 
   const fetchChallenges = useCallback(async () => {
     const { data } = await supabase
@@ -190,7 +215,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      map.on('click', () => setSelectedId(null));
+      map.on('click', () => { setSelectedId(null); setSelectedChallengeId(null); });
 
       map.on('moveend', () => {
         scheduleFetch(map.getBounds(), 350);
@@ -289,6 +314,46 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
 
     markersRef.current = Array.from(markerMapRef.current.values());
   }, [filteredMeals, selectedId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (categoryFilter !== 'culinary_circle') {
+      challengeMarkersRef.current.forEach((m) => m.remove());
+      challengeMarkersRef.current.clear();
+      return;
+    }
+
+    const visibleIds = new Set(
+      challenges.filter((c) => c.location_lat != null && c.location_lng != null).map((c) => c.id)
+    );
+
+    challengeMarkersRef.current.forEach((marker, id) => {
+      if (!visibleIds.has(id)) { marker.remove(); challengeMarkersRef.current.delete(id); }
+    });
+
+    challenges.forEach((c) => {
+      if (c.location_lat == null || c.location_lng == null) return;
+      const isSelected = c.id === selectedChallengeId;
+      const existing = challengeMarkersRef.current.get(c.id);
+      if (existing) {
+        existing.setIcon(makeChallengePinIcon(isSelected));
+        existing.setZIndexOffset(isSelected ? 1000 : 0);
+      } else {
+        const marker = L.marker([c.location_lat, c.location_lng], {
+          icon: makeChallengePinIcon(isSelected),
+          zIndexOffset: isSelected ? 1000 : 0,
+        }).addTo(map);
+        marker.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          setSelectedChallengeId(c.id);
+          map.panTo([c.location_lat!, c.location_lng!]);
+        });
+        challengeMarkersRef.current.set(c.id, marker);
+      }
+    });
+  }, [challenges, categoryFilter, selectedChallengeId]);
 
   const handleJoin = async () => {
     const selected = meals.find((m) => m.id === selectedId) ?? null;
@@ -427,10 +492,14 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
               key={f.key}
               onClick={() => {
                 setCategoryFilter(f.key);
-                if (f.key === 'culinary_circle') setSelectedId(null);
-                else if (selected) {
-                  const isVisible = f.key === 'all' || getCategory(selected) === f.key;
-                  if (!isVisible) setSelectedId(null);
+                if (f.key === 'culinary_circle') {
+                  setSelectedId(null);
+                } else {
+                  setSelectedChallengeId(null);
+                  if (selected) {
+                    const isVisible = f.key === 'all' || getCategory(selected) === f.key;
+                    if (!isVisible) setSelectedId(null);
+                  }
                 }
               }}
               style={{
@@ -499,6 +568,92 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
           ))}
         </div>
       </div>
+
+      {(() => {
+        const selChallenge = selectedChallengeId ? challenges.find((c) => c.id === selectedChallengeId) : null;
+        if (!selChallenge) return null;
+        const spotsLeft = selChallenge.max_members - (selChallenge.member_count ?? 0);
+        const statusColor = selChallenge.status === 'open' ? '#16a34a' : '#d97706';
+        const statusLabel = selChallenge.status === 'open' ? 'Ouvert' : 'En cours';
+        return (
+          <div style={{
+            position: 'absolute', bottom: BOTTOM_NAV_HEIGHT + 8,
+            left: 12, right: 12, zIndex: 25,
+            background: 'white', borderRadius: 20,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+            padding: '14px', display: 'flex', gap: 12, alignItems: 'center',
+            animation: 'cardUp .22s cubic-bezier(0.32,0.72,0,1) forwards',
+            borderLeft: '4px solid #b91c1c',
+          }}>
+            <button
+              onClick={() => setSelectedChallengeId(null)}
+              style={{
+                position: 'absolute', top: 10, right: 10,
+                background: '#f3f4f6', border: 'none', borderRadius: '50%',
+                width: 26, height: 26, cursor: 'pointer', padding: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#6b7280' }}>close</span>
+            </button>
+            <div style={{
+              width: 68, height: 68, borderRadius: 13, flexShrink: 0,
+              background: 'linear-gradient(135deg,#fef2f2,#fecaca)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '2px solid #fecaca',
+            }}>
+              <span style={{ fontSize: 30 }}>🏆</span>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden', paddingRight: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 800, color: 'white',
+                  background: statusColor, borderRadius: 20, padding: '2px 8px',
+                  textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0,
+                }}>{statusLabel}</span>
+                <span style={{ fontSize: 9, color: '#7f1d1d', fontWeight: 700 }}>
+                  {selChallenge.member_count ?? 0}/{selChallenge.max_members} membres
+                </span>
+              </div>
+              <p style={{ fontWeight: 700, fontSize: 15, color: '#111827', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selChallenge.title}
+              </p>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 13 }}>location_on</span>
+                {selChallenge.location_name ?? ''}
+              </p>
+              {selChallenge.creator && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  {selChallenge.creator.avatar_url && (
+                    <img src={selChallenge.creator.avatar_url} alt={selChallenge.creator.name} style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} />
+                  )}
+                  <span style={{ fontSize: 11, color: '#7f1d1d', fontWeight: 600 }}>{selChallenge.creator.name}</span>
+                </div>
+              )}
+              {spotsLeft > 0 && selChallenge.status === 'open' && (
+                <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700 }}>
+                  {spotsLeft} place{spotsLeft > 1 ? 's' : ''} libre{spotsLeft > 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => onNavigateToChallenges ? onNavigateToChallenges() : onNavigate('culinary')}
+              style={{
+                background: 'linear-gradient(135deg,#b91c1c,#7f1d1d)', color: 'white',
+                border: 'none', borderRadius: 26,
+                padding: '10px 15px', fontWeight: 700, fontSize: 13,
+                cursor: 'pointer', flexShrink: 0,
+                boxShadow: '0 3px 12px rgba(185,28,28,0.4)',
+                fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>emoji_events</span>
+              Voir
+            </button>
+          </div>
+        );
+      })()}
 
       {selected && (
         <div style={{
@@ -611,7 +766,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
         </div>
       )}
 
-      {categoryFilter === 'culinary_circle' && challenges.length > 0 && !selected && (
+      {categoryFilter === 'culinary_circle' && challenges.length > 0 && !selected && !selectedChallengeId && (
         <div style={{
           position: 'absolute',
           bottom: BOTTOM_NAV_HEIGHT + 8,
