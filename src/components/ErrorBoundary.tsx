@@ -23,20 +23,31 @@ function isChunkLoadError(error: Error): boolean {
   );
 }
 
-async function clearCachesAndReload() {
-  try {
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registrations.map((r) => r.unregister()));
+function clearCachesAndReload() {
+  const doReload = () => {
+    window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
+  };
+
+  const timeout = setTimeout(doReload, 2000);
+
+  const cleanup = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((r) => r.unregister()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch {
+      // ignore
     }
-    if ('caches' in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
-    }
-  } catch {
-    // ignore
-  }
-  window.location.reload();
+    clearTimeout(timeout);
+    doReload();
+  };
+
+  cleanup();
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
