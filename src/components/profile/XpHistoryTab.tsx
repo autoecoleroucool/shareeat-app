@@ -50,7 +50,7 @@ export default function XpHistoryTab({ currentUserId, xp, karma }: XpHistoryTabP
       .order('created_at', { ascending: false })
       .limit(50);
 
-    if (data) setLog(data as XpLogEntry[]);
+    if (data) setLog(data as unknown as XpLogEntry[]);
     setLoading(false);
   }, [currentUserId]);
 

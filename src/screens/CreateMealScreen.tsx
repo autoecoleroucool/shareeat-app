@@ -81,7 +81,7 @@ export default function CreateMealScreen({ onNavigate, editMeal }: CreateMealScr
   const [isPremium, setIsPremium] = useState(false);
   const [geolocating, setGeolocating] = useState(false);
   const [safetyConfirmed, setSafetyConfirmed] = useState(isEditing);
-  const [draftSaved, setDraftSaved] = useState(false);
+  const draftSaved = false;
   const imagePreviewRef = useRef<string>('');
   const DRAFT_KEY = 'shareeat_meal_draft';
 

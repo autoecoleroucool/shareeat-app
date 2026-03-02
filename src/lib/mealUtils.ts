@@ -1,7 +1,7 @@
 export const CATEGORY_CONFIG = {
   food_rescue: { color: '#16a34a', label: 'Anti-gaspi', bg: '#f0fdf4', border: '#bbf7d0', emoji: '♻️' },
   homemade_meal: { color: '#f97316', label: 'Repas maison', bg: '#fff7ed', border: '#fed7aa', emoji: '🍽️' },
-  culinary_circle: { color: '#d97706', label: 'Cercle Culinaire', bg: '#fef3c7', border: '#fde68a', emoji: '🏆' },
+  culinary_circle: { color: '#b91c1c', label: 'Cercle Culinaire', bg: '#fef2f2', border: '#fecaca', emoji: '🏆' },
 } as const;
 
 export const DISTANCE_METERS: Record<string, number | null> = {

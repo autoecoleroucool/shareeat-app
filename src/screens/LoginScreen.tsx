@@ -49,6 +49,8 @@ export default function LoginScreen() {
             <img
               src="/Logo_ShareEat_eco_et_alimentation.png"
               alt="ShareEat"
+              width="176"
+              height="176"
               className="h-44 w-auto object-contain drop-shadow-lg"
             />
           </div>

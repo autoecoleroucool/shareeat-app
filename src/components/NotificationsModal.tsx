@@ -67,7 +67,7 @@ export default function NotificationsModal({ userId, onClose, onGoToMessages }: 
         .limit(30);
 
       if (bookings) {
-        for (const b of bookings as BookingNotif[]) {
+        for (const b of bookings as unknown as BookingNotif[]) {
           notifs.push({
             id: b.id,
             type: 'booking',

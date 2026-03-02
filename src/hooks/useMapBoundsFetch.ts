@@ -89,8 +89,7 @@ export function useMapBoundsFetch(onMealsLoaded: (meals: MapMeal[]) => void) {
       .gte('location_lng', sw.lng - padding)
       .lte('location_lng', ne.lng + padding)
       .or('claimed.eq.false,claimed.is.null')
-      .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
-      .neq('meal_type', 'culinary_circle');
+      .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString());
 
     if (error) return;
 

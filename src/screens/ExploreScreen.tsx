@@ -33,7 +33,7 @@ const CATEGORY_TABS: { key: CategoryFilter; label: string; color: string }[] = [
   { key: 'all', label: 'Tout', color: '#374151' },
   { key: 'homemade_meal', label: '🍽️ Repas maison', color: '#f97316' },
   { key: 'food_rescue', label: '♻️ Anti-gaspi', color: '#16a34a' },
-  { key: 'cercle_culinaire', label: 'Cercle', color: '#b45309' },
+  { key: 'cercle_culinaire', label: 'Cercle', color: '#b91c1c' },
 ];
 
 const FILTER_STORAGE_KEY = 'shareeat_filters';
@@ -51,7 +51,6 @@ export default function ExploreScreen({
   onNavigate,
   unreadBookings = 0,
   onEditMeal,
-  onContactMember,
   onNavigateToChallenges,
 }: ExploreScreenProps) {
   const storedFilters = loadStoredFilters();
@@ -127,7 +126,7 @@ export default function ExploreScreen({
     if (data) setMeals((data as Meal[]).filter((m) => m.slots_taken < m.slots_total));
   }, []);
 
-  const { containerRef: scrollRef, indicatorRef } = usePullToRefresh(() => { fetchMeals(); fetchChallenges(); });
+  const { containerRef: scrollRef, indicatorRef } = usePullToRefresh(async () => { await fetchMeals(); await fetchChallenges(); });
 
   const toggleDiet = useCallback((tag: string) => {
     setSelectedDiets((prev) => {
@@ -558,8 +557,6 @@ export default function ExploreScreen({
           const timing = formatMealTiming(meal.meal_date);
           const hostName = meal.host?.name || 'Utilisateur';
           const hostAvatar = meal.host?.avatar_url || FALLBACK_AVATAR;
-          const hostSharesCount = (meal.host as unknown as { shares_count?: number } | null)?.shares_count ?? 0;
-          const isTrustedCook = hostSharesCount >= 10;
           const isLiked = meal.host_id ? likedIds.has(meal.host_id) : false;
           const isOwnMeal = meal.host_id === currentUserId;
           const expiringSoon = isFoodRescue && isExpiringSoon(mealWithExtra.expires_at);
@@ -719,15 +716,6 @@ export default function ExploreScreen({
                       <span className="font-bold py-2.5 px-5 rounded-xl text-sm bg-slate-100 text-slate-400 cursor-default">
                         Mon repas
                       </span>
-                    ) : categoryFilter === 'cercle_culinaire' && onContactMember ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onContactMember(meal.host_id!, hostName, hostAvatar); }}
-                        className="flex items-center gap-1.5 font-bold py-2.5 px-4 rounded-xl text-sm text-white transition-all active:scale-95"
-                        style={{ background: 'linear-gradient(135deg, #92400e, #78350f)' }}
-                      >
-                        <span className="material-symbols-outlined text-[16px]">chat</span>
-                        Contacter
-                      </button>
                     ) : bookedMeals.has(meal.id) ? (
                       <span className="flex items-center gap-1 font-bold py-2.5 px-4 rounded-xl text-xs bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default">
                         <span className="material-symbols-outlined text-[14px]">check_circle</span>
@@ -752,15 +740,13 @@ export default function ExploreScreen({
         {filteredMeals.length === 0 && meals.length > 0 && categoryFilter !== 'cercle_culinaire' && (
           <div className="text-center py-16">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-              {categoryFilter === 'food_rescue' ? '♻️' : categoryFilter === 'cercle_culinaire' ? '👨‍🍳' : '🍽️'}
+              {categoryFilter === 'food_rescue' ? '♻️' : '🍽️'}
             </div>
             <p className="font-bold text-slate-700 text-lg">Aucune annonce</p>
             <p className="text-sm text-slate-400 mt-1">
               {categoryFilter === 'food_rescue'
                 ? "Pas d'aliments à sauver pour l'instant"
-                : categoryFilter === 'cercle_culinaire'
-                  ? 'Aucun chef du Cercle Culinaire disponible pour l\'instant'
-                  : 'Pas de repas maison disponibles'}
+                : 'Pas de repas maison disponibles'}
             </p>
             {hasActiveFilters && (
               <button

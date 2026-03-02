@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
-import { CulinaryInvitation, CulinaryPhoto, Profile } from '../../types';
+import { CulinaryInvitation, CulinaryPhoto } from '../../types';
 
 interface Props {
   currentUserId: string;
@@ -68,7 +68,7 @@ export default function CulinaryInvitationModal({ currentUserId, onClose }: Prop
 
     if (!profiles?.length) { setMembers([]); return; }
 
-    const ids = profiles.map((p: Profile) => p.id);
+    const ids = profiles.map((p: { id: string }) => p.id);
     const { data: photos } = await supabase
       .from('culinary_circle_photos')
       .select('*')
@@ -81,8 +81,9 @@ export default function CulinaryInvitationModal({ currentUserId, onClose }: Prop
       if (photosByUser[ph.user_id].length < 6) photosByUser[ph.user_id].push(ph);
     });
 
+    type PartialProfile = { id: string; name: string; avatar_url: string; shares_count: number; rating: number; location_name?: string };
     setMembers(
-      (profiles as Profile[]).map((p) => ({
+      (profiles as unknown as PartialProfile[]).map((p) => ({
         id: p.id,
         name: p.name,
         avatar_url: p.avatar_url,
