@@ -44,9 +44,9 @@ function makePinIcon(category: 'food_rescue' | 'homemade_meal' | 'culinary_circl
   const s = selected ? 52 : 42;
 
   if (isTrustedCook) {
-    const pinColor = 'linear-gradient(135deg,#b91c1c,#7f1d1d)';
-    const borderColor = '#fca5a5';
-    const shadowColor = '#b91c1c';
+    const pinColor = 'linear-gradient(135deg,#d97706,#92400e)';
+    const borderColor = '#fbbf24';
+    const shadowColor = '#d97706';
     const pinEmoji = '☕';
     return L.divIcon({
       className: '',
@@ -413,16 +413,16 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
           style={{
             flex: 1,
             background: categoryFilter === 'culinary_circle'
-              ? 'linear-gradient(135deg,#b91c1c,#7f1d1d)'
+              ? 'linear-gradient(135deg,#d97706,#92400e)'
               : 'rgba(255,255,255,0.95)',
-            color: categoryFilter === 'culinary_circle' ? 'white' : '#b91c1c',
+            color: categoryFilter === 'culinary_circle' ? 'white' : '#92400e',
             fontFamily: 'inherit', fontWeight: 700, fontSize: 13,
-            border: categoryFilter === 'culinary_circle' ? '2px solid #7f1d1d' : '2px solid #fecaca',
+            border: categoryFilter === 'culinary_circle' ? '2px solid #92400e' : '2px solid #fcd34d',
             borderRadius: 30, padding: '11px 10px',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
             boxShadow: categoryFilter === 'culinary_circle'
-              ? '0 4px 16px rgba(185,28,28,0.45)'
-              : '0 4px 16px rgba(254,202,202,0.3)',
+              ? '0 4px 16px rgba(146,64,14,0.45)'
+              : '0 4px 16px rgba(253,211,77,0.3)',
             cursor: 'pointer',
             WebkitTapHighlightColor: 'transparent',
             touchAction: 'manipulation',
@@ -437,13 +437,13 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
           onClick={() => onNavigateToChallenges ? onNavigateToChallenges() : onNavigate('culinary')}
           style={{
             flex: 1,
-            background: 'linear-gradient(135deg,#b91c1c,#7f1d1d)',
+            background: 'linear-gradient(135deg,#d97706,#b45309)',
             color: 'white',
             fontFamily: 'inherit', fontWeight: 700, fontSize: 13,
-            border: '2px solid #fecaca',
+            border: '2px solid #f59e0b',
             borderRadius: 30, padding: '11px 10px',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-            boxShadow: '0 4px 16px rgba(185,28,28,0.45)',
+            boxShadow: '0 4px 16px rgba(217,119,6,0.45)',
             cursor: 'pointer',
             WebkitTapHighlightColor: 'transparent',
             touchAction: 'manipulation',
@@ -670,7 +670,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{
                   width: 28, height: 28, borderRadius: 8,
-                  background: 'linear-gradient(135deg,#b91c1c,#7f1d1d)',
+                  background: 'linear-gradient(135deg,#d97706,#92400e)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 15, color: 'white' }}>emoji_events</span>
@@ -681,7 +681,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
                 onClick={() => onNavigateToChallenges ? onNavigateToChallenges() : onNavigate('culinary')}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                  fontSize: 12, fontWeight: 700, color: '#b91c1c', fontFamily: 'inherit',
+                  fontSize: 12, fontWeight: 700, color: '#b45309', fontFamily: 'inherit',
                   display: 'flex', alignItems: 'center', gap: 2,
                 }}
               >
@@ -691,7 +691,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
             </div>
             <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2 }}>
               {challenges.map((c) => {
-                const statusColor = c.status === 'open' ? '#16a34a' : '#b91c1c';
+                const statusColor = c.status === 'open' ? '#16a34a' : '#d97706';
                 const statusLabel = c.status === 'open' ? 'Ouvert' : 'En cours';
                 const spotsLeft = c.max_members - (c.member_count ?? 0);
                 return (
@@ -700,8 +700,8 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
                     onClick={() => onNavigateToChallenges ? onNavigateToChallenges() : onNavigate('culinary')}
                     style={{
                       flexShrink: 0, width: 180,
-                      background: 'linear-gradient(145deg,#fff5f5,#fef2f2)',
-                      border: '1.5px solid #fecaca',
+                      background: 'linear-gradient(145deg,#fffbeb,#fef3c7)',
+                      border: '1.5px solid #fde68a',
                       borderRadius: 14, padding: '10px 12px',
                       textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
                     }}
@@ -711,7 +711,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
                         fontSize: 9, fontWeight: 800, color: 'white',
                         background: statusColor, borderRadius: 20, padding: '2px 7px',
                       }}>{statusLabel}</span>
-                      <span style={{ fontSize: 9, color: '#7f1d1d', fontWeight: 600 }}>
+                      <span style={{ fontSize: 9, color: '#92400e', fontWeight: 600 }}>
                         {c.member_count ?? 0}/{c.max_members}
                       </span>
                     </div>
@@ -723,11 +723,11 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
                       {c.creator?.avatar_url && (
                         <img src={c.creator.avatar_url} alt={c.creator.name} style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} />
                       )}
-                      <span style={{ fontSize: 10, color: '#7f1d1d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.creator?.name}</span>
+                      <span style={{ fontSize: 10, color: '#78350f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.creator?.name}</span>
                     </div>
                     {spotsLeft > 0 && c.status === 'open' && (
-                      <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #fecaca' }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: '#b91c1c' }}>
+                      <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #fde68a' }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: '#b45309' }}>
                           {spotsLeft} place{spotsLeft > 1 ? 's' : ''} libre{spotsLeft > 1 ? 's' : ''}
                         </span>
                       </div>

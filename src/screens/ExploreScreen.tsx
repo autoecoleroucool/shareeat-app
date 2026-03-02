@@ -33,7 +33,7 @@ const CATEGORY_TABS: { key: CategoryFilter; label: string; color: string }[] = [
   { key: 'all', label: 'Tout', color: '#374151' },
   { key: 'homemade_meal', label: '🍽️ Repas maison', color: '#f97316' },
   { key: 'food_rescue', label: '♻️ Anti-gaspi', color: '#16a34a' },
-  { key: 'cercle_culinaire', label: 'Cercle', color: '#b91c1c' },
+  { key: 'cercle_culinaire', label: 'Cercle', color: '#b45309' },
 ];
 
 const FILTER_STORAGE_KEY = 'shareeat_filters';
