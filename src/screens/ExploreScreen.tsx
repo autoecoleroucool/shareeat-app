@@ -14,7 +14,9 @@ import ReportMealModal from '../components/ReportMealModal';
 import MealDetailModal from '../components/MealDetailModal';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import PullIndicator from '../components/PullIndicator';
-type CategoryFilter = 'all' | 'food_rescue' | 'homemade_meal';
+import CulinaryGallery from '../components/culinary/CulinaryGallery';
+
+type CategoryFilter = 'all' | 'food_rescue' | 'homemade_meal' | 'cercle_culinaire';
 
 interface ExploreScreenProps {
   activeScreen: Screen;
@@ -31,6 +33,7 @@ const CATEGORY_TABS: { key: CategoryFilter; label: string; color: string }[] = [
   { key: 'all', label: 'Tout', color: '#374151' },
   { key: 'homemade_meal', label: '🍽️ Repas maison', color: '#f97316' },
   { key: 'food_rescue', label: '♻️ Anti-gaspi', color: '#16a34a' },
+  { key: 'cercle_culinaire', label: 'Cercle', color: '#b91c1c' },
 ];
 
 const FILTER_STORAGE_KEY = 'shareeat_filters';
@@ -76,6 +79,7 @@ export default function ExploreScreen({
   const [bookingMeal, setBookingMeal] = useState<Meal | null>(null);
   const [bookedMeals, setBookedMeals] = useState<Set<string>>(new Set());
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserIsPremium, setCurrentUserIsPremium] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [reportingMeal, setReportingMeal] = useState<Meal | null>(null);
@@ -151,7 +155,7 @@ export default function ExploreScreen({
       setCurrentUserId(uid);
 
       if (uid) {
-        const [participations, blockedResult, favoritesResult] = await Promise.all([
+        const [participations, blockedResult, favoritesResult, profileResult] = await Promise.all([
           supabase
             .from('meal_participants')
             .select('meal_id')
@@ -166,6 +170,11 @@ export default function ExploreScreen({
             .from('chef_favorites')
             .select('chef_id')
             .eq('user_id', uid),
+          supabase
+            .from('profiles')
+            .select('is_premium')
+            .eq('id', uid)
+            .maybeSingle(),
         ]);
 
         if (participations.data) {
@@ -176,6 +185,9 @@ export default function ExploreScreen({
         }
         if (favoritesResult.data) {
           setLikedIds(new Set(favoritesResult.data.map((f: { chef_id: string }) => f.chef_id)));
+        }
+        if (profileResult.data) {
+          setCurrentUserIsPremium(profileResult.data.is_premium ?? false);
         }
       }
     };
@@ -267,7 +279,11 @@ export default function ExploreScreen({
         if (!title.includes(q) && !desc.includes(q) && !loc.includes(q)) return false;
       }
 
-      if (categoryFilter !== 'all' && getMealCategory(m) !== categoryFilter) {
+      if (categoryFilter === 'cercle_culinaire') {
+        const hostSharesCount = (m.host as unknown as { shares_count?: number } | null)?.shares_count ?? 0;
+        if (hostSharesCount < 10) return false;
+        if (m.host_id === currentUserId) return false;
+      } else if (categoryFilter !== 'all' && getMealCategory(m) !== categoryFilter) {
         return false;
       }
 
@@ -316,14 +332,24 @@ export default function ExploreScreen({
             <button
               key={tab.key}
               onClick={() => setCategoryFilter(tab.key)}
-              className="flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1"
-              style={{
+              className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 ${tab.key === 'cercle_culinaire' && categoryFilter === tab.key ? 'text-white' : ''}`}
+              style={tab.key === 'cercle_culinaire' ? {
+                background: categoryFilter === tab.key
+                  ? 'linear-gradient(135deg, #92400e, #78350f)'
+                  : 'linear-gradient(135deg, #fffbeb, #fef3c7)',
+                color: categoryFilter === tab.key ? '#fef3c7' : '#92400e',
+                border: `2px solid ${categoryFilter === tab.key ? '#92400e' : '#fcd34d'}`,
+                boxShadow: categoryFilter === tab.key ? '0 2px 8px rgba(146,64,14,0.35)' : '0 1px 3px rgba(0,0,0,0.07)',
+              } : {
                 background: categoryFilter === tab.key ? tab.color : 'white',
                 color: categoryFilter === tab.key ? 'white' : tab.color,
                 border: `2px solid ${categoryFilter === tab.key ? tab.color : '#e5e7eb'}`,
                 boxShadow: categoryFilter === tab.key ? `0 2px 8px ${tab.color}44` : '0 1px 3px rgba(0,0,0,0.07)',
               }}
             >
+              {tab.key === 'cercle_culinaire' && (
+                <span className="material-symbols-outlined text-[11px] fill-1">emoji_food_beverage</span>
+              )}
               {tab.label}
             </button>
           ))}
@@ -359,7 +385,7 @@ export default function ExploreScreen({
           </div>
         )}
 
-        {categoryFilter === 'all' && challenges.length > 0 && (
+        {(categoryFilter === 'all' || categoryFilter === 'cercle_culinaire') && challenges.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -433,6 +459,73 @@ export default function ExploreScreen({
             </div>
           </div>
         )}
+        {categoryFilter === 'cercle_culinaire' && !currentUserIsPremium && (
+          <div className="flex flex-col items-center py-12 gap-5">
+            <div className="relative">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-950 via-stone-900 to-amber-900 flex items-center justify-center shadow-xl">
+                <span className="material-symbols-outlined text-amber-400 text-[38px] fill-1">workspace_premium</span>
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center shadow-md">
+                <span className="material-symbols-outlined text-amber-950 text-[16px]">lock</span>
+              </div>
+            </div>
+            <div className="text-center px-4">
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Cercle Culinaire</h3>
+              <p className="text-sm text-slate-500 leading-relaxed mb-1">
+                Cet espace est réservé aux membres premium.
+              </p>
+              <p className="text-sm text-slate-500 leading-relaxed">
+                Les membres du Cercle se retrouvent ici pour s'inviter à des repas exclusifs entre passionnés.
+              </p>
+            </div>
+            <div className="w-full bg-gradient-to-br from-amber-950 via-stone-900 to-amber-900 rounded-2xl p-5 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-10" style={{
+                backgroundImage: 'radial-gradient(circle at 20% 50%, #fbbf24 0%, transparent 50%), radial-gradient(circle at 80% 20%, #f59e0b 0%, transparent 40%)'
+              }} />
+              <p className="text-xs font-bold text-amber-300 uppercase tracking-widest mb-3 relative">Avantages inclus</p>
+              <div className="space-y-3 relative">
+                {[
+                  { icon: 'restaurant', label: 'Repas exclusifs entre membres' },
+                  { icon: 'group', label: 'Réseau privé de passionnés' },
+                  { icon: 'star', label: 'Badge Cercle Culinaire visible' },
+                  { icon: 'explore', label: 'Invitations sans limite de distance' },
+                ].map(({ icon, label }) => (
+                  <div key={label} className="flex items-center gap-3">
+                    <div className="w-7 h-7 bg-amber-400/20 rounded-lg flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-amber-400 text-[15px]">{icon}</span>
+                    </div>
+                    <p className="text-sm text-amber-100">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 text-center px-4">
+              Partage 10 repas pour débloquer le statut premium et rejoindre le Cercle.
+            </p>
+          </div>
+        )}
+        {categoryFilter === 'cercle_culinaire' && currentUserIsPremium && currentUserId && (
+          <>
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-950 via-stone-900 to-amber-900 p-4 flex items-start gap-3">
+              <div className="absolute inset-0 opacity-10" style={{
+                backgroundImage: 'radial-gradient(circle at 20% 50%, #fbbf24 0%, transparent 50%), radial-gradient(circle at 80% 20%, #f59e0b 0%, transparent 40%)'
+              }} />
+              <div className="w-10 h-10 bg-amber-400/20 rounded-xl flex items-center justify-center shrink-0 mt-0.5 relative">
+                <span className="material-symbols-outlined text-amber-400 text-[20px] fill-1">workspace_premium</span>
+              </div>
+              <div className="relative">
+                <p className="text-sm font-bold text-amber-100">Cercle Culinaire — Galerie privée</p>
+                <p className="text-xs text-amber-300/70 leading-relaxed mt-0.5">
+                  Les créations culinaires partagées en exclusivité par les membres du Cercle.
+                </p>
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-amber-950/80 via-stone-900/90 to-amber-900/80 rounded-2xl p-4 mt-0">
+              <CulinaryGallery userId={currentUserId} isOwner={true} isCommunityFeed currentUserId={currentUserId} />
+            </div>
+          </>
+        )}
+
         {loadError && (
           <div className="flex flex-col items-center py-16 gap-3">
             <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center">
@@ -461,7 +554,7 @@ export default function ExploreScreen({
             </div>
           ))}
 
-        {filteredMeals.map((meal) => {
+        {!(categoryFilter === 'cercle_culinaire') && filteredMeals.map((meal) => {
           const cat = getMealCategory(meal);
           const cfg = CATEGORY_CONFIG[cat];
           const isFoodRescue = cat === 'food_rescue';
@@ -650,7 +743,7 @@ export default function ExploreScreen({
           );
         })}
 
-        {filteredMeals.length === 0 && meals.length > 0 && (
+        {filteredMeals.length === 0 && meals.length > 0 && categoryFilter !== 'cercle_culinaire' && (
           <div className="text-center py-16">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
               {categoryFilter === 'food_rescue' ? '♻️' : '🍽️'}
@@ -715,12 +808,19 @@ export default function ExploreScreen({
                       key={tab.key}
                       onClick={() => setCategoryFilter(tab.key)}
                       className="px-4 py-2 rounded-full border text-sm font-semibold transition-all flex items-center gap-1.5"
-                      style={{
+                      style={tab.key === 'cercle_culinaire' ? {
+                        borderColor: categoryFilter === tab.key ? '#92400e' : '#fcd34d',
+                        background: categoryFilter === tab.key ? '#92400e18' : '#fffbeb',
+                        color: '#92400e',
+                      } : {
                         borderColor: categoryFilter === tab.key ? tab.color : '#e2e8f0',
                         background: categoryFilter === tab.key ? `${tab.color}18` : 'white',
                         color: categoryFilter === tab.key ? tab.color : '#475569',
                       }}
                     >
+                      {tab.key === 'cercle_culinaire' && (
+                        <span className="material-symbols-outlined text-[13px] fill-1">emoji_food_beverage</span>
+                      )}
                       {tab.label}
                     </button>
                   ))}
