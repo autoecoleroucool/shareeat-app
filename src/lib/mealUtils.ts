@@ -1,7 +1,6 @@
 export const CATEGORY_CONFIG = {
   food_rescue: { color: '#16a34a', label: 'Anti-gaspi', bg: '#f0fdf4', border: '#bbf7d0', emoji: '♻️' },
   homemade_meal: { color: '#f97316', label: 'Repas maison', bg: '#fff7ed', border: '#fed7aa', emoji: '🍽️' },
-  culinary_circle: { color: '#b91c1c', label: 'Cercle Culinaire', bg: '#fef2f2', border: '#fecaca', emoji: '🏆' },
 } as const;
 
 export const DISTANCE_METERS: Record<string, number | null> = {
@@ -14,8 +13,7 @@ export const DISTANCE_METERS: Record<string, number | null> = {
 export const DISTANCE_OPTIONS = ['Toute distance', 'Moins de 500m', 'Moins de 1 km', 'Moins de 2 km'];
 export const TIME_OPTIONS = ["N'importe quand", "Aujourd'hui", 'Demain', 'Cette semaine'];
 
-export function getMealCategory(meal: { category?: string | null; meal_type?: string | null }): 'food_rescue' | 'homemade_meal' | 'culinary_circle' {
-  if (meal.meal_type === 'culinary_circle') return 'culinary_circle';
+export function getMealCategory(meal: { category?: string | null; meal_type?: string | null }): 'food_rescue' | 'homemade_meal' {
   if (meal.category === 'food_rescue') return 'food_rescue';
   return 'homemade_meal';
 }
