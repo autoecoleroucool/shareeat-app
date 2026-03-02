@@ -165,7 +165,7 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
       guest: { id: string; name: string; avatar_url: string } | null;
       meal: { title: string } | null;
     };
-    const convs: Conversation[] = (filtered as unknown as RawConv[]).map((c) => {
+    const convs: Conversation[] = (filtered as RawConv[]).map((c) => {
       const isHost = c.host_id === uid;
       const other = isHost ? c.guest : c.host;
       const otherId = isHost ? c.guest_id : c.host_id;
@@ -221,12 +221,13 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
           setConversations((prev) => {
             const exists = prev.some((c) => c.id === updated.id);
             if (!exists) { loadConversations(); return prev; }
-            return prev.map((c) =>
+            const reordered = prev.map((c) =>
               c.id === updated.id
                 ? { ...c, last_message_text: updated.last_message_text, last_message_at: updated.last_message_at,
                     unread_by_me: (activeConvRef.current?.id === c.id || !uid || c.host_id === uid) ? c.unread_by_me : c.unread_by_me + 1 }
                 : c
-            ).sort((a, b) => new Date(b.last_message_at ?? b.created_at).getTime() - new Date(a.last_message_at ?? a.created_at).getTime()) as Conversation[];
+            ).sort((a, b) => new Date(b.last_message_at ?? b.created_at).getTime() - new Date(a.last_message_at ?? a.created_at).getTime());
+            return reordered;
           });
         }
       )
@@ -239,12 +240,13 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
           setConversations((prev) => {
             const exists = prev.some((c) => c.id === updated.id);
             if (!exists) { loadConversations(); return prev; }
-            return prev.map((c) =>
+            const reordered = prev.map((c) =>
               c.id === updated.id
                 ? { ...c, last_message_text: updated.last_message_text, last_message_at: updated.last_message_at,
                     unread_by_me: (activeConvRef.current?.id === c.id || !uid || c.guest_id === uid) ? c.unread_by_me : c.unread_by_me + 1 }
                 : c
-            ).sort((a, b) => new Date(b.last_message_at ?? b.created_at).getTime() - new Date(a.last_message_at ?? a.created_at).getTime()) as Conversation[];
+            ).sort((a, b) => new Date(b.last_message_at ?? b.created_at).getTime() - new Date(a.last_message_at ?? a.created_at).getTime());
+            return reordered;
           });
         }
       )

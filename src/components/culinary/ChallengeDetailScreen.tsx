@@ -18,6 +18,11 @@ interface Props {
 
 type DetailTab = 'members' | 'meals' | 'ratings' | 'chat';
 
+function formatDate(d: string | null) {
+  if (!d) return null;
+  return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 function formatDateShort(d: string | null) {
   if (!d) return null;
   return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
@@ -47,6 +52,12 @@ function statusLabel(status: string) {
   if (status === 'active') return { label: 'En cours', color: 'bg-amber-500/20 text-amber-300 border-amber-500/20' };
   if (status === 'closed') return { label: 'Fermé', color: 'bg-red-500/20 text-red-300 border-red-500/20' };
   return { label: 'Terminé', color: 'bg-white/10 text-white/40 border-white/10' };
+}
+
+function memberStatusLabel(status: string) {
+  if (status === 'accepted') return { label: 'Confirmé', color: 'text-green-400' };
+  if (status === 'pending') return { label: 'En attente', color: 'text-amber-400' };
+  return { label: 'Décliné', color: 'text-red-400' };
 }
 
 export default function ChallengeDetailScreen({ challenge, currentUserId, onClose, onContactMember, onViewMemberProfile }: Props) {
@@ -94,6 +105,7 @@ export default function ChallengeDetailScreen({ challenge, currentUserId, onClos
   const isCreator = challenge.creator_id === currentUserId;
   const isAccepted = myMembership?.status === 'accepted';
   const isPending = myMembership?.status === 'pending';
+  const isOpen = challenge.status === 'open';
   const isClosed = challenge.status === 'closed';
   const acceptedCount = members.filter((m) => m.status === 'accepted').length;
   const pendingCount = members.filter((m) => m.status === 'pending' && m.user_id !== currentUserId).length;

@@ -69,8 +69,8 @@ export interface Conversation {
   meal_id: string | null;
   host_id: string;
   guest_id: string;
-  last_message_at: string | null;
-  last_message_text: string | null;
+  last_message_at: string;
+  last_message_text: string;
   created_at: string;
   other_profile: { id: string; name: string; avatar_url: string } | null;
   meal_title: string | null;
@@ -153,7 +153,7 @@ export interface CulinaryInvitation {
   guest?: { id: string; name: string; avatar_url: string };
 }
 
-export type ChallengeStatus = 'open' | 'active' | 'completed' | 'closed';
+export type ChallengeStatus = 'open' | 'active' | 'completed';
 export type ChallengeMemberStatus = 'pending' | 'accepted' | 'declined';
 export type ChallengeMealStatus = 'planned' | 'done';
 
@@ -165,9 +165,6 @@ export interface CulinaryChallenge {
   status: ChallengeStatus;
   min_members: number;
   max_members: number;
-  location_lat?: number | null;
-  location_lng?: number | null;
-  location_name?: string | null;
   created_at: string;
   updated_at: string;
   creator?: { id: string; name: string; avatar_url: string; shares_count: number };

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { getCurrentPosition, reverseGeocode } from '../lib/geolocation';
-import { Screen, CulinaryPhoto, CulinaryInvitation, CulinaryChallenge } from '../types';
+import { Screen, CulinaryPhoto, CulinaryInvitation, Profile, CulinaryChallenge } from '../types';
 import BottomNav from '../components/BottomNav';
 import ChallengeDetailScreen from '../components/culinary/ChallengeDetailScreen';
 import MemberProfileModal from '../components/culinary/MemberProfileModal';
@@ -191,7 +191,7 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
 
     if (!profiles.length) { setMembers([]); setMembersLoading(false); return; }
 
-    const ids = profiles.map((p: { id: string }) => p.id);
+    const ids = profiles.map((p: Profile) => p.id);
     const { data: photos } = await supabase
       .from('culinary_circle_photos')
       .select('*')
@@ -204,9 +204,8 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
       if (photosByUser[ph.user_id].length < 6) photosByUser[ph.user_id].push(ph);
     });
 
-    type PartialProfile = { id: string; name: string; avatar_url: string; shares_count: number; rating: number; location_name?: string };
     setMembers(
-      (profiles as unknown as PartialProfile[]).map((p) => ({
+      (profiles as Profile[]).map((p) => ({
         id: p.id,
         name: p.name,
         avatar_url: p.avatar_url,
@@ -355,9 +354,6 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
         creator_id: currentUserId,
         title: challengeTitle.trim(),
         description: challengeDesc.trim(),
-        location_lat: position.lat,
-        location_lng: position.lng,
-        location_name: position.name,
       })
       .select()
       .maybeSingle();

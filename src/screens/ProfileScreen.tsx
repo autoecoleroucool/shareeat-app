@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { Screen } from '../types';
 import BottomNav from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
@@ -240,7 +240,7 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
     if (mealsResult.data) setSharedMeals(mealsResult.data as SharedMeal[]);
     setMealsLoading(false);
 
-    if (recoveredResult.data) setRecoveredMeals(recoveredResult.data as unknown as RecoveredMeal[]);
+    if (recoveredResult.data) setRecoveredMeals(recoveredResult.data as RecoveredMeal[]);
     setRecoveredLoading(false);
 
     if (hostMealIds.length > 0) {
@@ -251,7 +251,7 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
         .eq('delivered', false)
         .eq('no_show', false)
         .order('joined_at', { ascending: false });
-      if (bookingsData) setPendingBookings(bookingsData as unknown as PendingBooking[]);
+      if (bookingsData) setPendingBookings(bookingsData as PendingBooking[]);
     }
     setPendingLoading(false);
   }, []);

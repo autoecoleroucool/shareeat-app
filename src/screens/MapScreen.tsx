@@ -165,7 +165,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
     scheduleFetch(map.getBounds(), immediate ? 0 : 350);
   }, [scheduleFetch]);
 
-  const { containerRef: mapPullRef, indicatorRef: mapIndicatorRef } = usePullToRefresh(async () => {
+  const { containerRef: mapPullRef, indicatorRef: mapIndicatorRef } = usePullToRefresh(() => {
     invalidateCache();
     triggerFetchForCurrentBounds(true);
   });
@@ -354,13 +354,11 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
   const selectedCategory = selected ? getCategory(selected) : null;
 
   const isFoodRescue = selectedCategory === 'food_rescue';
-  const isCulinaryCircle = selectedCategory === 'culinary_circle';
 
   const FILTERS: { key: CategoryFilter; label: string; color: string; gradient?: string }[] = [
     { key: 'all', label: 'Tout', color: '#374151' },
     { key: 'homemade_meal', label: '🍽️ Repas maison', color: '#f97316' },
     { key: 'food_rescue', label: '♻️ Anti-gaspi', color: '#16a34a' },
-    { key: 'culinary_circle', label: '🏆 Cercle', color: '#b91c1c', gradient: 'linear-gradient(135deg,#b91c1c,#7f1d1d)' },
   ];
 
   return (
@@ -388,6 +386,31 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
           }}
         >
           <span style={{ fontSize: 17 }}>+</span> Partager
+        </button>
+        <button
+          onClick={() => setCategoryFilter(categoryFilter === 'culinary_circle' ? 'all' : 'culinary_circle')}
+          style={{
+            flex: 1,
+            background: categoryFilter === 'culinary_circle'
+              ? 'linear-gradient(135deg,#b91c1c,#7f1d1d)'
+              : 'rgba(255,255,255,0.95)',
+            color: categoryFilter === 'culinary_circle' ? 'white' : '#b91c1c',
+            fontFamily: 'inherit', fontWeight: 700, fontSize: 13,
+            border: categoryFilter === 'culinary_circle' ? '2px solid #7f1d1d' : '2px solid #fecaca',
+            borderRadius: 30, padding: '11px 10px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            boxShadow: categoryFilter === 'culinary_circle'
+              ? '0 4px 16px rgba(185,28,28,0.45)'
+              : '0 4px 16px rgba(254,202,202,0.3)',
+            cursor: 'pointer',
+            WebkitTapHighlightColor: 'transparent',
+            touchAction: 'manipulation',
+            backdropFilter: 'blur(8px)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <span style={{ fontSize: 14 }}>☕</span>
+          Cercle
         </button>
         <button
           onClick={() => onNavigateToChallenges ? onNavigateToChallenges() : onNavigate('culinary')}
@@ -527,15 +550,6 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
             }}>
               <span style={{ fontSize: 30 }}>♻️</span>
             </div>
-          ) : isCulinaryCircle ? (
-            <div style={{
-              width: 68, height: 68, borderRadius: 13, flexShrink: 0,
-              background: 'linear-gradient(135deg,#fef2f2,#fecaca)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: '2px solid #fecaca',
-            }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 34, color: '#b91c1c', fontVariationSettings: "'FILL' 1" }}>emoji_events</span>
-            </div>
           ) : (
             <div style={{ width: 68, height: 68, borderRadius: 13, overflow: 'hidden', flexShrink: 0 }}>
               <img src={selected.image_url} alt={selected.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" decoding="async" />
@@ -586,23 +600,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
             )}
           </div>
 
-          {isCulinaryCircle ? (
-            <button
-              onClick={() => onNavigateToChallenges ? onNavigateToChallenges() : onNavigate('culinary')}
-              style={{
-                background: 'linear-gradient(135deg,#b91c1c,#7f1d1d)', color: 'white',
-                border: 'none', borderRadius: 26,
-                padding: '10px 15px', fontWeight: 700, fontSize: 13,
-                cursor: 'pointer', flexShrink: 0,
-                boxShadow: '0 3px 12px rgba(185,28,28,0.4)',
-                fontFamily: 'inherit',
-                display: 'flex', alignItems: 'center', gap: 5,
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>emoji_events</span>
-              Voir
-            </button>
-          ) : (() => {
+          {(() => {
             const isOwner = currentUserId != null && selected.host_id === currentUserId;
             const disabled = loadingBooking || isOwner;
             const bg = isOwner ? '#94a3b8' : CATEGORY_CONFIG[getCategory(selected)].color;
