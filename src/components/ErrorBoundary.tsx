@@ -7,7 +7,6 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
-  isAutoReloading: boolean;
 }
 
 function isChunkLoadError(error: Error): boolean {
@@ -23,37 +22,19 @@ function isChunkLoadError(error: Error): boolean {
   );
 }
 
-function clearCachesAndReload() {
-  const doReload = () => {
-    window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
-  };
-
-  const timeout = setTimeout(doReload, 2000);
-
-  const cleanup = async () => {
-    try {
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((r) => r.unregister()));
-      }
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
-      }
-    } catch {
-      // ignore
-    }
-    clearTimeout(timeout);
-    doReload();
-  };
-
-  cleanup();
+function forceReload() {
+  try {
+    const url = window.location.origin + window.location.pathname + '?_=' + Date.now();
+    window.location.replace(url);
+  } catch {
+    window.location.reload();
+  }
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null, isAutoReloading: false };
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
@@ -67,30 +48,16 @@ export default class ErrorBoundary extends Component<Props, State> {
       this.state.error &&
       isChunkLoadError(this.state.error)
     ) {
-      this.setState({ isAutoReloading: true });
-      clearCachesAndReload();
+      forceReload();
     }
   }
 
   handleReload() {
-    clearCachesAndReload();
+    forceReload();
   }
 
   render() {
     if (this.state.hasError) {
-      if (this.state.isAutoReloading) {
-        return (
-          <div className="flex flex-col items-center justify-center h-screen bg-white px-8 font-display">
-            <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mb-4">
-              <span className="material-symbols-outlined text-green-500 text-[32px] animate-spin">
-                autorenew
-              </span>
-            </div>
-            <p className="text-sm text-slate-500 text-center">Mise à jour en cours...</p>
-          </div>
-        );
-      }
-
       return (
         <div className="flex flex-col items-center justify-center h-screen bg-white px-8 font-display">
           <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mb-5">
