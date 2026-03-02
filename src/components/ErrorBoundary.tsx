@@ -7,26 +7,81 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  isAutoReloading: boolean;
+}
+
+function isChunkLoadError(error: Error): boolean {
+  const msg = error.message?.toLowerCase() ?? '';
+  return (
+    msg.includes('mime type') ||
+    msg.includes('dynamically imported') ||
+    msg.includes('failed to fetch dynamically') ||
+    msg.includes('loading chunk') ||
+    msg.includes('loading css chunk') ||
+    msg.includes('unexpected token') ||
+    (error.name === 'TypeError' && msg.includes('import'))
+  );
+}
+
+async function clearCachesAndReload() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((r) => r.unregister()));
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch {
+    // ignore
+  }
+  window.location.reload();
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, isAutoReloading: false };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
+  componentDidUpdate(_: Props, prevState: State) {
+    if (
+      this.state.hasError &&
+      !prevState.hasError &&
+      this.state.error &&
+      isChunkLoadError(this.state.error)
+    ) {
+      this.setState({ isAutoReloading: true });
+      clearCachesAndReload();
+    }
+  }
+
   handleReload() {
-    window.location.reload();
+    clearCachesAndReload();
   }
 
   render() {
     if (this.state.hasError) {
+      if (this.state.isAutoReloading) {
+        return (
+          <div className="flex flex-col items-center justify-center h-screen bg-white px-8 font-display">
+            <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mb-4">
+              <span className="material-symbols-outlined text-green-500 text-[32px] animate-spin">
+                autorenew
+              </span>
+            </div>
+            <p className="text-sm text-slate-500 text-center">Mise à jour en cours...</p>
+          </div>
+        );
+      }
+
       return (
-        <div className="flex flex-col items-center justify-center h-app bg-white px-8 font-display">
+        <div className="flex flex-col items-center justify-center h-screen bg-white px-8 font-display">
           <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mb-5">
             <span className="material-symbols-outlined text-red-400 text-[40px]">error_outline</span>
           </div>
