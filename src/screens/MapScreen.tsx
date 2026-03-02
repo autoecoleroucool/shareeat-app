@@ -183,12 +183,14 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
   }, []);
 
   const { scheduleFetch, invalidateCache } = useMapBoundsFetch(handleMealsLoaded);
+  const scheduleFetchRef = useRef(scheduleFetch);
+  useEffect(() => { scheduleFetchRef.current = scheduleFetch; }, [scheduleFetch]);
 
   const triggerFetchForCurrentBounds = useCallback((immediate = false) => {
     const map = mapRef.current;
     if (!map) return;
-    scheduleFetch(map.getBounds(), immediate ? 0 : 350);
-  }, [scheduleFetch]);
+    scheduleFetchRef.current(map.getBounds(), immediate ? 0 : 350);
+  }, []);
 
   const { containerRef: mapPullRef, indicatorRef: mapIndicatorRef } = usePullToRefresh(async () => {
     invalidateCache();
@@ -199,10 +201,12 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
     if (!mapDivRef.current || mapInitializedRef.current) return;
     mapInitializedRef.current = true;
 
-    const initMap = (startCenter: [number, number]) => {
-      if (!mapDivRef.current) return;
+    const container = mapDivRef.current;
 
-      const map = L.map(mapDivRef.current, {
+    const initMap = (startCenter: [number, number]) => {
+      if (!container || (container as HTMLElement & { _leaflet_id?: number })._leaflet_id) return;
+
+      const map = L.map(container, {
         center: startCenter,
         zoom: 14,
         zoomControl: false,
@@ -218,15 +222,15 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
       map.on('click', () => { setSelectedId(null); setSelectedChallengeId(null); });
 
       map.on('moveend', () => {
-        scheduleFetch(map.getBounds(), 350);
+        scheduleFetchRef.current(map.getBounds(), 350);
       });
 
       map.on('zoomend', () => {
-        scheduleFetch(map.getBounds(), 350);
+        scheduleFetchRef.current(map.getBounds(), 350);
       });
 
       mapRef.current = map;
-      scheduleFetch(map.getBounds(), 0);
+      scheduleFetchRef.current(map.getBounds(), 0);
     };
 
     getCurrentPosition({ enableHighAccuracy: false, timeout: 10000 }).then((pos) => {
@@ -244,7 +248,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
       }
       mapInitializedRef.current = false;
     };
-  }, [scheduleFetch]);
+  }, []);
 
   useEffect(() => {
     if (activeScreen !== 'map') return;
