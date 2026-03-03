@@ -81,7 +81,6 @@ export default function CreateMealScreen({ onNavigate, editMeal }: CreateMealScr
   const [isPremium, setIsPremium] = useState(false);
   const [geolocating, setGeolocating] = useState(false);
   const [safetyConfirmed, setSafetyConfirmed] = useState(isEditing);
-  const draftSaved = false;
   const imagePreviewRef = useRef<string>('');
   const DRAFT_KEY = 'shareeat_meal_draft';
 
@@ -359,9 +358,6 @@ export default function CreateMealScreen({ onNavigate, editMeal }: CreateMealScr
         <h1 className="text-lg font-bold tracking-tight">
           {isEditing ? 'Modifier l\'annonce' : 'Partager'}
         </h1>
-        {!isEditing && draftSaved !== undefined && (
-          <span className="text-[10px] text-slate-400 font-medium">Brouillon sauvegardé</span>
-        )}
         <div className="w-10" />
       </header>
 

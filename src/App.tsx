@@ -303,7 +303,7 @@ export default function App() {
   const handleConvOpen = useCallback((convId: string | null) => {
     activeConvIdRef.current = convId;
     loadUnreadMessagesRef.current?.();
-    if (convId) setOpenConversationId(null);
+    if (!convId) setOpenConversationId(null);
   }, []);
 
   useEffect(() => {

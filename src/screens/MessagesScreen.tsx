@@ -645,7 +645,7 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-900">Signaler cet utilisateur</p>
-                      <p className="text-xs text-slate-400 mt-0.5">Informer l'equipe d'un comportement inapproprie</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Informer l'équipe d'un comportement inapproprié</p>
                     </div>
                   </button>
 
