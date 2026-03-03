@@ -384,9 +384,9 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
     const karma = (profileResult.data as { karma_balance?: number } | null)?.karma_balance ?? 0;
 
     if (mealData) {
-      const meal = mealData as Meal & { host?: { name?: string; avatar_url?: string } | null; meal_date?: string };
+      const meal = mealData as Meal;
       const hostProfile = meal.host ?? null;
-      setBookingMeal(meal as unknown as Meal);
+      setBookingMeal(meal);
       setBookingHost({
         name: hostProfile?.name ?? 'Hôte',
         avatar: hostProfile?.avatar_url ?? 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg',

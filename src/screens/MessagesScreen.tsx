@@ -289,6 +289,9 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
         .is('read_at', null)
         .then(() => {
           onConvOpen?.(activeConv.id);
+        })
+        .catch(() => {
+          onConvOpen?.(activeConv.id);
         });
     } else {
       onConvOpen?.(activeConv.id);
@@ -338,18 +341,20 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
               });
           }
 
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === newMsg.conversation_id
-                ? {
-                    ...c,
-                    last_message_text: newMsg.content,
-                    last_message_at: newMsg.created_at,
-                    unread_by_me: (newMsg.sender_id !== userIdRef.current && activeConvRef.current?.id === c.id) ? 0 : c.unread_by_me,
-                  }
-                : c
-            )
-          );
+          if (newMsg.conversation_id) {
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === newMsg.conversation_id
+                  ? {
+                      ...c,
+                      last_message_text: newMsg.content,
+                      last_message_at: newMsg.created_at,
+                      unread_by_me: (newMsg.sender_id !== userIdRef.current && activeConvRef.current?.id === c.id) ? 0 : c.unread_by_me,
+                    }
+                  : c
+              )
+            );
+          }
         }
       )
       .subscribe();
