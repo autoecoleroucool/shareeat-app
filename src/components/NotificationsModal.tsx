@@ -148,7 +148,7 @@ export default function NotificationsModal({ userId, onClose, onGoToMessages }: 
                 >
                   <div className="relative shrink-0">
                     {notif.avatar ? (
-                      <img src={notif.avatar} alt="" className="w-12 h-12 rounded-full object-cover" />
+                      <img src={notif.avatar} alt="" className="w-12 h-12 rounded-full object-cover" loading="lazy" decoding="async" />
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center">
                         <span className="material-symbols-outlined text-slate-400 text-[22px]">person</span>

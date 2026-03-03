@@ -765,7 +765,7 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
           <div className="flex items-center justify-between px-4 pb-3 shrink-0" style={{ paddingTop: 'max(52px, env(safe-area-inset-top))' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 flex-1 min-w-0">
               {selectedPhoto.author && (
-                <img src={selectedPhoto.author.avatar_url || ''} alt={selectedPhoto.author.name} className="w-9 h-9 rounded-full object-cover border border-amber-400/30 shrink-0" />
+                <img src={selectedPhoto.author.avatar_url || ''} alt={selectedPhoto.author.name} className="w-9 h-9 rounded-full object-cover border border-amber-400/30 shrink-0" loading="lazy" decoding="async" />
               )}
               <div className="min-w-0">
                 <h3 className="text-white font-bold text-base leading-tight truncate">{selectedPhoto.meal_name}</h3>
@@ -1799,7 +1799,7 @@ function SendInviteSheet({
         <div className="px-4 pt-4 pb-8 space-y-4">
           <div className="flex items-center gap-3 bg-white/5 rounded-2xl p-3 border border-amber-400/10">
             <img src={member.avatar_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'} alt={member.name}
-              className="w-11 h-11 rounded-full object-cover border-2 border-amber-400/30 shrink-0" />
+              className="w-11 h-11 rounded-full object-cover border-2 border-amber-400/30 shrink-0" loading="lazy" decoding="async" />
             <div>
               <p className="text-sm font-bold text-amber-100">{member.name}</p>
               <p className="text-[10px] text-amber-400/50">{member.shares_count} partages · Note {member.rating.toFixed(1)}</p>
@@ -1927,7 +1927,7 @@ function InvitationDetailSheet({
           <div className="flex items-center gap-3 bg-white/5 rounded-2xl p-3 border border-amber-400/10">
             <img src={invitation.host?.avatar_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'}
               alt={invitation.host?.name}
-              className="w-12 h-12 rounded-full object-cover border-2 border-amber-400/30 shrink-0" />
+              className="w-12 h-12 rounded-full object-cover border-2 border-amber-400/30 shrink-0" loading="lazy" decoding="async" />
             <div>
               <p className="text-xs text-amber-400/50 mb-0.5">Invitation de</p>
               <p className="text-sm font-bold text-amber-100">{invitation.host?.name}</p>

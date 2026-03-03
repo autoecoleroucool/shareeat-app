@@ -629,7 +629,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
               {selChallenge.creator && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   {selChallenge.creator.avatar_url && (
-                    <img src={selChallenge.creator.avatar_url} alt={selChallenge.creator.name} style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} />
+                    <img src={selChallenge.creator.avatar_url} alt={selChallenge.creator.name} style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} loading="lazy" decoding="async" />
                   )}
                   <span style={{ fontSize: 11, color: '#7f1d1d', fontWeight: 600 }}>{selChallenge.creator.name}</span>
                 </div>
@@ -839,7 +839,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
                     }}>{c.title}</p>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       {c.creator?.avatar_url && (
-                        <img src={c.creator.avatar_url} alt={c.creator.name} style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} />
+                        <img src={c.creator.avatar_url} alt={c.creator.name} style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} loading="lazy" decoding="async" />
                       )}
                       <span style={{ fontSize: 10, color: '#7f1d1d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.creator?.name}</span>
                     </div>

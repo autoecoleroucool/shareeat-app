@@ -535,12 +535,12 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
     setShowActionsMenu(false);
   }
 
-  function formatTime(iso: string) {
+  const formatTime = useCallback((iso: string) => {
     const d = new Date(iso);
     return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  }
+  }, []);
 
-  function formatLastSeen(iso: string) {
+  const formatLastSeen = useCallback((iso: string) => {
     const d = new Date(iso);
     const now = new Date();
     const diff = (now.getTime() - d.getTime()) / 1000;
@@ -549,11 +549,11 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
     if (diff < 86400) return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     if (diff < 86400 * 2) return 'Hier';
     return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-  }
+  }, []);
 
-  function getInitials(name: string) {
+  const getInitials = useCallback((name: string) => {
     return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
-  }
+  }, []);
 
   const grouped = useMemo(() => groupMessages(messages), [messages]);
 
@@ -575,7 +575,7 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
 
           <div className="relative">
             {activeConv.other_profile?.avatar_url ? (
-              <img src={activeConv.other_profile.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+              <img src={activeConv.other_profile.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" loading="lazy" decoding="async" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
                 <span className="text-white text-sm font-bold">

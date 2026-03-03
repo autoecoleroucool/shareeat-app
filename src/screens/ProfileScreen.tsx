@@ -385,7 +385,7 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
             <div className="relative">
               <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-[#49e619]/30">
                 {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                  <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                 ) : (
                   <div className="w-full h-full bg-slate-200 flex items-center justify-center">
                     <span className="material-symbols-outlined text-slate-400 text-[40px]">person</span>
