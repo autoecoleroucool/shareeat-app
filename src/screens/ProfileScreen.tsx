@@ -507,8 +507,8 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
               <span className="material-symbols-outlined text-white text-[22px] fill-1">volunteer_activism</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-slate-900 text-sm">Don solidaire</p>
-              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">Soutenir la communauté ShareEat et aider à réduire le gaspillage</p>
+              <p className="font-bold text-slate-900 text-sm">Faire un don solidaire</p>
+              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">ShareEat soutient des associations contre le gaspillage alimentaire. Vous pouvez aussi faire un don pour les aider.</p>
             </div>
             <span className="material-symbols-outlined text-orange-300 text-[20px] shrink-0">chevron_right</span>
           </button>
