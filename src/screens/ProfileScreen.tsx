@@ -641,7 +641,7 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
                       <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 mb-2">
                         <span className="material-symbols-outlined text-blue-500 text-[16px] shrink-0 mt-0.5">info</span>
                         <p className="text-[11px] text-blue-700 leading-relaxed">
-                          <span className="font-bold">Conseil de securite :</span> Pour ta tranquillite, remets le repas dans un espace commun — hall d'entree, devant ta porte ou dans la rue. Tu n'as pas a faire entrer quelqu'un chez toi.
+                          <span className="font-bold">Conseil de sécurité :</span> Pour votre sécurité, ShareEat recommande de remettre le repas à l'entrée de votre immeuble ou devant votre porte. Évitez de faire entrer des inconnus chez vous.
                         </p>
                       </div>
                       <div className="space-y-2">
