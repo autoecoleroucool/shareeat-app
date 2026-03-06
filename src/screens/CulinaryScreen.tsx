@@ -14,6 +14,8 @@ interface CulinaryScreenProps {
   onContactMember: (hostId: string, hostName: string, hostAvatar: string) => void;
   initialTab?: Tab;
   onInitialTabConsumed?: () => void;
+  initialChallengeId?: string;
+  onInitialChallengeIdConsumed?: () => void;
 }
 
 type Tab = 'feed' | 'members' | 'invitations' | 'my_gallery' | 'challenges';
@@ -78,7 +80,7 @@ function formatDateShort(d: string | null) {
   return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
-export default function CulinaryScreen({ activeScreen, onNavigate, unreadBookings = 0, onContactMember, initialTab, onInitialTabConsumed }: CulinaryScreenProps) {
+export default function CulinaryScreen({ activeScreen, onNavigate, unreadBookings = 0, onContactMember, initialTab, onInitialTabConsumed, initialChallengeId, onInitialChallengeIdConsumed }: CulinaryScreenProps) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(initialTab ?? 'challenges');
 
@@ -152,6 +154,25 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
       onInitialTabConsumed?.();
     }
   }, [initialTab, onInitialTabConsumed]);
+
+  useEffect(() => {
+    if (!initialChallengeId || challengesLoading) return;
+    const found = challenges.find((c) => c.id === initialChallengeId);
+    if (found) {
+      setSelectedChallenge(found);
+      onInitialChallengeIdConsumed?.();
+    } else if (challenges.length > 0 || !challengesLoading) {
+      supabase
+        .from('culinary_challenges')
+        .select('*, creator:creator_id(id, name, avatar_url, shares_count)')
+        .eq('id', initialChallengeId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) setSelectedChallenge(data as CulinaryChallenge);
+          onInitialChallengeIdConsumed?.();
+        });
+    }
+  }, [initialChallengeId, challenges, challengesLoading, onInitialChallengeIdConsumed]);
 
   const loadFeed = useCallback(async () => {
     setFeedLoading(true);

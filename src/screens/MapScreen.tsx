@@ -15,7 +15,7 @@ interface MapScreenProps {
   activeScreen: Screen;
   onNavigate: (screen: Screen) => void;
   unreadBookings?: number;
-  onNavigateToChallenges?: () => void;
+  onNavigateToChallenges?: (challengeId?: string) => void;
 }
 
 type CategoryFilter = 'all' | 'food_rescue' | 'homemade_meal' | 'culinary_circle';
@@ -35,6 +35,7 @@ interface MapMeal {
   quantity?: string | null;
   host_id?: string | null;
   host_is_trusted_cook?: boolean;
+  challenge_id?: string | null;
 }
 
 const PARIS: [number, number] = [48.856, 2.347];
@@ -767,10 +768,13 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
             const disabled = loadingBooking || isOwner;
             const bg = isOwner ? '#94a3b8' : isCulinaryCircle ? 'linear-gradient(135deg,#b91c1c,#7f1d1d)' : CATEGORY_CONFIG[getCategory(selected)].color;
             const label = isOwner ? 'Mon annonce' : isFoodRescue ? 'Récupérer' : isCulinaryCircle ? 'Voir le défi' : 'Rejoindre';
+            const handleClick = isCulinaryCircle
+              ? () => { onNavigateToChallenges ? onNavigateToChallenges(selected.challenge_id ?? undefined) : onNavigate('culinary'); }
+              : isOwner ? undefined : handleJoin;
             return (
               <button
-                onClick={isOwner ? undefined : handleJoin}
-                disabled={disabled}
+                onClick={handleClick}
+                disabled={disabled && !isCulinaryCircle}
                 style={{
                   background: bg, color: 'white',
                   border: 'none', borderRadius: 26,

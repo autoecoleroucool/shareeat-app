@@ -18,6 +18,7 @@ interface MapMeal {
   quantity?: string | null;
   host_id?: string | null;
   host_is_trusted_cook?: boolean;
+  challenge_id?: string | null;
 }
 
 interface CacheEntry {
@@ -74,7 +75,7 @@ export function useMapBoundsFetch(onMealsLoaded: (meals: MapMeal[]) => void) {
     const padding = 0.5;
     const { data, error } = await supabase
       .from('meals')
-      .select('id,title,image_url,location_lat,location_lng,location_name,slots_total,slots_taken,meal_type,category,expires_at,quantity,host_id,claimed,host:profiles!meals_host_id_fkey(shares_count)')
+      .select('id,title,image_url,location_lat,location_lng,location_name,slots_total,slots_taken,meal_type,category,expires_at,quantity,host_id,claimed,challenge_id,host:profiles!meals_host_id_fkey(shares_count)')
       .gte('location_lat', sw.lat - padding)
       .lte('location_lat', ne.lat + padding)
       .gte('location_lng', sw.lng - padding)

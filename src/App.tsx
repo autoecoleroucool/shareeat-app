@@ -56,6 +56,7 @@ export default function App() {
   const [editMeal, setEditMeal] = useState<EditMealData | null>(null);
   const [openConversationId, setOpenConversationId] = useState<string | null>(null);
   const [culinaryInitialTab, setCulinaryInitialTab] = useState<'feed' | 'challenges' | null>(null);
+  const [culinaryInitialChallengeId, setCulinaryInitialChallengeId] = useState<string | null>(null);
 
   const [unreadBookings, setUnreadBookings] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -349,8 +350,9 @@ export default function App() {
             activeScreen={screen}
             onNavigate={handleNavigate}
             unreadBookings={unreadBookings + unreadMessages}
-            onNavigateToChallenges={() => {
+            onNavigateToChallenges={(challengeId) => {
               setCulinaryInitialTab('challenges');
+              if (challengeId) setCulinaryInitialChallengeId(challengeId);
               handleNavigate('culinary');
             }}
           />
@@ -361,8 +363,9 @@ export default function App() {
             onNavigate={handleNavigate}
             unreadBookings={unreadBookings + unreadMessages}
             onContactMember={handleContactMember}
-            onNavigateToChallenges={() => {
+            onNavigateToChallenges={(challengeId) => {
               setCulinaryInitialTab('challenges');
+              if (challengeId) setCulinaryInitialChallengeId(challengeId);
               handleNavigate('culinary');
             }}
             onEditMeal={(meal) => {
@@ -429,6 +432,8 @@ export default function App() {
             onContactMember={handleContactMember}
             initialTab={culinaryInitialTab ?? undefined}
             onInitialTabConsumed={() => setCulinaryInitialTab(null)}
+            initialChallengeId={culinaryInitialChallengeId ?? undefined}
+            onInitialChallengeIdConsumed={() => setCulinaryInitialChallengeId(null)}
           />
         )}
         {screen === 'settings' && (
