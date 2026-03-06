@@ -40,13 +40,17 @@ interface MapMeal {
 const PARIS: [number, number] = [48.856, 2.347];
 const BOTTOM_NAV_HEIGHT = 90;
 
-function makePinIcon(category: 'food_rescue' | 'homemade_meal', selected: boolean, isTrustedCook = false) {
-  const s = selected ? 52 : 42;
+function makePinIcon(category: 'food_rescue' | 'homemade_meal' | 'culinary_circle', selected: boolean, isTrustedCook = false) {
+  const isCulinary = category === 'culinary_circle';
+  const s = selected ? (isCulinary ? 56 : 52) : (isCulinary ? 44 : 42);
 
   const { color, emoji } = CATEGORY_CONFIG[category];
+  const bg = isCulinary ? 'linear-gradient(135deg,#b91c1c,#7f1d1d)' : color;
   const borderColor = isTrustedCook ? '#fbbf24' : 'white';
   const badgeHtml = isTrustedCook
     ? `<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:#fbbf24;border:2px solid white;display:flex;align-items:center;justify-content:center;font-size:7px;z-index:1;">★</div>`
+    : isCulinary
+    ? `<div style="position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:#fbbf24;border:2px solid white;display:flex;align-items:center;justify-content:center;font-size:8px;z-index:1;color:#7f1d1d;font-weight:900;">C</div>`
     : '';
   return L.divIcon({
     className: '',
@@ -56,12 +60,12 @@ function makePinIcon(category: 'food_rescue' | 'homemade_meal', selected: boolea
         width:${s}px;height:${s}px;
         border-radius:50% 50% 50% 0;
         transform:rotate(-45deg);
-        background:${color};
+        background:${bg};
         border:3px solid ${borderColor};
-        box-shadow:0 4px 14px ${color}88;
+        box-shadow:0 4px 14px ${isCulinary ? 'rgba(185,28,28,0.55)' : color + '88'};
         display:flex;align-items:center;justify-content:center;
       ">
-        <span style="transform:rotate(45deg);font-size:${selected ? 21 : 17}px;line-height:1;">${emoji}</span>
+        <span style="transform:rotate(45deg);font-size:${selected ? (isCulinary ? 23 : 21) : (isCulinary ? 19 : 17)}px;line-height:1;">${emoji}</span>
       </div>
     </div>`,
     iconSize: [s, s],
@@ -75,6 +79,7 @@ function makeChallengePinIcon(selected: boolean) {
   return L.divIcon({
     className: '',
     html: `<div style="position:relative;width:${s}px;height:${s}px;">
+      <div style="position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:#fbbf24;border:2px solid white;display:flex;align-items:center;justify-content:center;font-size:8px;z-index:1;color:#7f1d1d;font-weight:900;">C</div>
       <div style="
         width:${s}px;height:${s}px;
         border-radius:50% 50% 50% 0;
@@ -108,7 +113,7 @@ function makeUserIcon() {
 
 const pinIconCache = new Map<string, L.DivIcon>();
 
-function getCachedPinIcon(category: 'food_rescue' | 'homemade_meal', selected: boolean, isTrustedCook = false): L.DivIcon {
+function getCachedPinIcon(category: 'food_rescue' | 'homemade_meal' | 'culinary_circle', selected: boolean, isTrustedCook = false): L.DivIcon {
   const key = `${category}-${selected}-${isTrustedCook}`;
   if (!pinIconCache.has(key)) {
     pinIconCache.set(key, makePinIcon(category, selected, isTrustedCook));
@@ -268,11 +273,12 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
   }, [activeScreen, triggerFetchForCurrentBounds, invalidateCache, fetchChallenges]);
 
   const filteredMeals = useMemo(() => {
-    if (categoryFilter === 'culinary_circle') return [];
     return meals.filter((m) => {
       if (m.host_id && blockedHostIds.has(m.host_id)) return false;
-      if (categoryFilter !== 'all' && getCategory(m) !== categoryFilter) return false;
-      return true;
+      const cat = getCategory(m);
+      if (categoryFilter === 'culinary_circle') return cat === 'culinary_circle';
+      if (categoryFilter === 'all') return true;
+      return cat === categoryFilter;
     });
   }, [meals, blockedHostIds, categoryFilter]);
 
@@ -323,7 +329,8 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
     const map = mapRef.current;
     if (!map) return;
 
-    if (categoryFilter !== 'culinary_circle') {
+    const showChallenges = categoryFilter === 'culinary_circle' || categoryFilter === 'all';
+    if (!showChallenges) {
       challengeMarkersRef.current.forEach((m) => m.remove());
       challengeMarkersRef.current.clear();
       return;
@@ -426,12 +433,13 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
   const selectedCategory = selected ? getCategory(selected) : null;
 
   const isFoodRescue = selectedCategory === 'food_rescue';
+  const isCulinaryCircle = selectedCategory === 'culinary_circle';
 
   const FILTERS: { key: CategoryFilter; label: string; color: string; gradient?: string }[] = [
     { key: 'all', label: 'Tout', color: '#374151' },
     { key: 'homemade_meal', label: '🍽️ Repas maison', color: '#f97316' },
     { key: 'food_rescue', label: '♻️ Anti-gaspi', color: '#16a34a' },
-    ...(challenges.length > 0 ? [{ key: 'culinary_circle' as CategoryFilter, label: '🏆 Cercle', color: '#b91c1c', gradient: 'linear-gradient(135deg,#b91c1c,#7f1d1d)' }] : []),
+    { key: 'culinary_circle', label: '🏆 Cercle', color: '#b91c1c', gradient: 'linear-gradient(135deg,#b91c1c,#7f1d1d)' },
   ];
 
   return (
@@ -681,7 +689,23 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
             <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#6b7280' }}>close</span>
           </button>
 
-          {isFoodRescue ? (
+          {isCulinaryCircle ? (
+            <div style={{
+              width: 68, height: 68, borderRadius: 13, flexShrink: 0,
+              background: 'linear-gradient(135deg,#fef2f2,#fecaca)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '2px solid #fecaca', position: 'relative',
+            }}>
+              <span style={{ fontSize: 30 }}>🏆</span>
+              <div style={{
+                position: 'absolute', top: -4, right: -4,
+                width: 18, height: 18, borderRadius: '50%',
+                background: '#fbbf24', border: '2px solid white',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 9, fontWeight: 900, color: '#7f1d1d',
+              }}>C</div>
+            </div>
+          ) : isFoodRescue ? (
             <div style={{
               width: 68, height: 68, borderRadius: 13, flexShrink: 0,
               background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -742,8 +766,8 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
           {(() => {
             const isOwner = currentUserId != null && selected.host_id === currentUserId;
             const disabled = loadingBooking || isOwner;
-            const bg = isOwner ? '#94a3b8' : CATEGORY_CONFIG[getCategory(selected)].color;
-            const label = isOwner ? 'Mon annonce' : isFoodRescue ? 'Récupérer' : 'Rejoindre';
+            const bg = isOwner ? '#94a3b8' : isCulinaryCircle ? 'linear-gradient(135deg,#b91c1c,#7f1d1d)' : CATEGORY_CONFIG[getCategory(selected)].color;
+            const label = isOwner ? 'Mon annonce' : isFoodRescue ? 'Récupérer' : isCulinaryCircle ? 'Voir le défi' : 'Rejoindre';
             return (
               <button
                 onClick={isOwner ? undefined : handleJoin}
