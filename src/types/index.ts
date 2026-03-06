@@ -216,3 +216,29 @@ export interface CulinaryChallengeRating {
 }
 
 export type Screen = 'map' | 'explore' | 'create' | 'messages' | 'profile' | 'settings' | 'culinary';
+
+export type BadgeSlug = 'first_share' | 'shares_10' | 'shares_25' | 'community_helper' | 'food_rescue_hero';
+
+export interface UserBadge {
+  id: string;
+  user_id: string;
+  badge_slug: BadgeSlug;
+  awarded_at: string;
+}
+
+export interface BadgeConfig {
+  slug: BadgeSlug;
+  label: string;
+  description: string;
+  emoji: string;
+  color: string;
+  bg: string;
+  threshold?: number;
+}
+
+export interface Referral {
+  id: string;
+  referrer_id: string;
+  referred_id: string;
+  created_at: string;
+}

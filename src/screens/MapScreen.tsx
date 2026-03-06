@@ -10,6 +10,7 @@ import BookingModal from '../components/BookingModal';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import PullIndicator from '../components/PullIndicator';
 import { useMapBoundsFetch } from '../hooks/useMapBoundsFetch';
+import ImpactCounter from '../components/ImpactCounter';
 
 interface MapScreenProps {
   activeScreen: Screen;
@@ -557,6 +558,15 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
           : <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#16a34a' }}>my_location</span>
         }
       </button>
+
+      <div style={{
+        position: 'absolute',
+        bottom: BOTTOM_NAV_HEIGHT + (selected ? 290 : 140),
+        left: 12, zIndex: 20,
+        transition: 'bottom 0.25s cubic-bezier(0.32,0.72,0,1)',
+      }}>
+        <ImpactCounter />
+      </div>
 
       <div style={{
         position: 'absolute',

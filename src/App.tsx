@@ -72,6 +72,15 @@ export default function App() {
     return () => window.removeEventListener('resize', setAppHeight);
   }, []);
 
+  useEffect(() => {
+    const path = window.location.pathname;
+    const match = path.match(/^\/invite\/([a-f0-9-]{36})$/);
+    if (match) {
+      localStorage.setItem('shareeat_pending_referrer', match[1]);
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
+
   useEffect(() => { screenRef.current = screen; }, [screen]);
 
   useEffect(() => {
@@ -92,6 +101,18 @@ export default function App() {
       } else {
         userIdRef.current = session.user.id;
         checkOnboarding(session.user.id);
+        if (_event === 'SIGNED_IN') {
+          (async () => {
+            const pendingReferrer = localStorage.getItem('shareeat_pending_referrer');
+            if (pendingReferrer && pendingReferrer !== session.user.id) {
+              await supabase.from('referrals').insert({
+                referrer_id: pendingReferrer,
+                referred_id: session.user.id,
+              });
+              localStorage.removeItem('shareeat_pending_referrer');
+            }
+          })();
+        }
       }
     });
 

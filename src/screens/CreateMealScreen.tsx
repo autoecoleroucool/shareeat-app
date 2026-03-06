@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Screen } from '../types';
+import { Screen, BadgeConfig } from '../types';
 import { supabase } from '../lib/supabase';
 import { getCurrentPosition, reverseGeocode } from '../lib/geolocation';
 import LocationPicker from '../components/LocationPicker';
+import ShareSuccessModal from '../components/ShareSuccessModal';
+import { checkAndAwardBadges } from '../hooks/useCheckBadges';
 
 interface EditMealData {
   id: string;
@@ -78,6 +80,8 @@ export default function CreateMealScreen({ onNavigate, editMeal }: CreateMealScr
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [newBadges, setNewBadges] = useState<BadgeConfig[]>([]);
   const [isPremium, setIsPremium] = useState(false);
   const [geolocating, setGeolocating] = useState(false);
   const [safetyConfirmed, setSafetyConfirmed] = useState(isEditing);
@@ -318,23 +322,46 @@ export default function CreateMealScreen({ onNavigate, editMeal }: CreateMealScr
 
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
     setSuccess(true);
-    setTimeout(() => {
-      onNavigate('explore');
-    }, 1500);
+
+    if (!isEditing) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('meals_given, shares_count, meals_taken')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (profile) {
+          const badges = await checkAndAwardBadges(user.id, profile);
+          setNewBadges(badges);
+        }
+      }
+      setShowShareModal(true);
+    } else {
+      setTimeout(() => onNavigate('profile'), 1500);
+    }
   }
 
   const isFoodRescue = listingMode === 'food_rescue';
 
   if (success) {
+    const successTitle = isEditing ? 'Annonce modifiée !' : (listingMode === 'food_rescue' ? 'Annonce publiée !' : 'Repas publié !');
     return (
       <div className="flex flex-col h-app bg-white items-center justify-center gap-4 font-display">
         <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
           <span className="material-symbols-outlined text-[#16a34a] text-[40px]">{isEditing ? 'check_circle' : (listingMode === 'food_rescue' ? 'recycling' : 'check_circle')}</span>
         </div>
-        <h2 className="text-2xl font-bold text-slate-900">
-          {isEditing ? 'Annonce modifiée !' : (listingMode === 'food_rescue' ? 'Annonce publiée !' : 'Repas publié !')}
-        </h2>
-        <p className="text-slate-500 text-sm">Redirection en cours...</p>
+        <h2 className="text-2xl font-bold text-slate-900">{successTitle}</h2>
+        {isEditing && <p className="text-slate-500 text-sm">Redirection en cours...</p>}
+        {showShareModal && (
+          <ShareSuccessModal
+            title={listingMode === 'food_rescue' ? 'Merci pour ta contribution !' : 'Ton repas est en ligne !'}
+            subtitle={listingMode === 'food_rescue' ? 'Tu viens d\'aider à réduire le gaspillage alimentaire.' : 'Invite tes amis à rejoindre le mouvement ShareEat.'}
+            newBadges={newBadges}
+            onClose={() => onNavigate('explore')}
+            shareMessage={`Je viens de ${listingMode === 'food_rescue' ? 'sauver de la nourriture du gaspillage' : 'partager un repas'} sur ShareEat ! Rejoins le mouvement : https://shareeat.app`}
+          />
+        )}
       </div>
     );
   }

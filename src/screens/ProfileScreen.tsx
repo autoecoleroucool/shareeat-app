@@ -10,6 +10,7 @@ import FavoritesTab from '../components/profile/FavoritesTab';
 import XpHistoryTab from '../components/profile/XpHistoryTab';
 import NotificationsModal from '../components/NotificationsModal';
 import DonationModal from '../components/DonationModal';
+import BadgesSection from '../components/BadgesSection';
 
 interface EditMealData {
   id: string;
@@ -212,6 +213,8 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
   const [activeTab, setActiveTab] = useState<'activity' | 'favorites' | 'xp'>('activity');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showDonation, setShowDonation] = useState(false);
+  const [referralCount, setReferralCount] = useState(0);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
   const [blockConfirmId, setBlockConfirmId] = useState<string | null>(null);
   const [blockingUserId, setBlockingUserId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -226,13 +229,15 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
     if (!user) { setLoading(false); setMealsLoading(false); setRecoveredLoading(false); setPendingLoading(false); return; }
     setCurrentUserId(user.id);
 
-    const [profileResult, mealsResult, recoveredResult] = await Promise.all([
+    const [profileResult, mealsResult, recoveredResult, referralResult] = await Promise.all([
       supabase.from('profiles').select('id, name, avatar_url, bio, location_name, rating, xp, meals_given, meals_taken, karma_balance, shares_count, is_premium, created_at').eq('id', user.id).maybeSingle(),
       supabase.from('meals').select('id, title, description, image_url, created_at, slots_taken, slots_total, category, allergens, meal_date, expires_at, quantity, location_lat, location_lng, location_name').eq('host_id', user.id).order('created_at', { ascending: false }).limit(10),
       supabase.from('meal_participants').select('meal_id, joined_at, delivered, meals(id, title, image_url, category, location_name, host_id)').eq('user_id', user.id).eq('no_show', false).order('joined_at', { ascending: false }).limit(20),
+      supabase.from('referrals').select('id', { count: 'exact', head: true }).eq('referrer_id', user.id),
     ]);
 
     if (profileResult.data) setProfile(profileResult.data as Profile);
+    setReferralCount(referralResult.count ?? 0);
     setLoading(false);
 
     const hostMealIds = mealsResult.data?.map((m: { id: string }) => m.id) ?? [];
@@ -499,9 +504,39 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
             <SharesBar shares={sharesCount} max={SHARES_FOR_CIRCLE} />
           </div>
 
+          <BadgesSection userId={currentUserId} mealsGiven={mealsGiven} sharesCount={sharesCount} />
+
+          <button
+            onClick={() => {
+              const link = `https://shareeat.app/invite/${currentUserId}`;
+              const message = `Rejoins ShareEat, l'appli de partage de repas entre voisins ! ${link}`;
+              if (typeof navigator !== 'undefined' && 'share' in navigator) {
+                navigator.share({ title: 'Rejoins ShareEat', text: message, url: link }).catch(() => {});
+              } else {
+                navigator.clipboard.writeText(link).then(() => {
+                  setInviteLinkCopied(true);
+                  setTimeout(() => setInviteLinkCopied(false), 2500);
+                }).catch(() => {});
+              }
+            }}
+            className="mt-4 w-full flex items-center gap-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4 text-left active:scale-[0.98] transition-all"
+          >
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#16a34a] to-[#15803d] flex items-center justify-center shrink-0 shadow-md">
+              <span className="material-symbols-outlined text-white text-[22px]">person_add</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-slate-900 text-sm">
+                {inviteLinkCopied ? 'Lien copié !' : 'Inviter des amis'}
+                {referralCount > 0 && <span className="ml-2 text-xs font-normal text-green-700 bg-green-100 px-2 py-0.5 rounded-full">{referralCount} invité{referralCount > 1 ? 's' : ''}</span>}
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">Partage ton lien d'invitation et aide ShareEat à grandir.</p>
+            </div>
+            <span className="material-symbols-outlined text-green-300 text-[20px] shrink-0">{inviteLinkCopied ? 'check' : 'share'}</span>
+          </button>
+
           <button
             onClick={() => setShowDonation(true)}
-            className="mt-5 w-full flex items-center gap-4 bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-2xl p-4 text-left active:scale-[0.98] transition-all"
+            className="mt-3 w-full flex items-center gap-4 bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-2xl p-4 text-left active:scale-[0.98] transition-all"
           >
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#e8512a] to-[#c0392b] flex items-center justify-center shrink-0 shadow-md">
               <span className="material-symbols-outlined text-white text-[22px] fill-1">volunteer_activism</span>
