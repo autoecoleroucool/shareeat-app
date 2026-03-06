@@ -407,6 +407,22 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
     setShowCreateChallenge(false);
   };
 
+  const respondToChallengeInvitation = useCallback(async (challengeId: string, accept: boolean) => {
+    if (!currentUserId) return;
+    const { data: membership } = await supabase
+      .from('culinary_challenge_members')
+      .select('id')
+      .eq('challenge_id', challengeId)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+    if (!membership) return;
+    await supabase
+      .from('culinary_challenge_members')
+      .update({ status: accept ? 'accepted' : 'declined' })
+      .eq('id', membership.id);
+    await loadChallenges();
+  }, [currentUserId, loadChallenges]);
+
   useEffect(() => { loadFeed(); }, [loadFeed]);
 
   useEffect(() => {
@@ -647,6 +663,7 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
             showCreate={showCreateChallenge}
             challengeTitle={challengeTitle}
             challengeDesc={challengeDesc}
+            onRespondToInvitation={respondToChallengeInvitation}
             creating={creatingChallenge}
             acceptedResponsibility={acceptedResponsibility}
             createError={challengeError}
@@ -852,6 +869,7 @@ function ChallengesTab({
   onCreate,
   onCancelCreate,
   onSelectChallenge,
+  onRespondToInvitation,
 }: {
   challenges: CulinaryChallenge[];
   loading: boolean;
@@ -869,7 +887,16 @@ function ChallengesTab({
   onCreate: () => void;
   onCancelCreate: () => void;
   onSelectChallenge: (c: CulinaryChallenge) => void;
+  onRespondToInvitation: (challengeId: string, accept: boolean) => void;
 }) {
+  const [respondingId, setRespondingId] = useState<string | null>(null);
+
+  const handleRespond = async (challengeId: string, accept: boolean) => {
+    setRespondingId(challengeId);
+    await onRespondToInvitation(challengeId, accept);
+    setRespondingId(null);
+  };
+
   const statusConfig: Record<string, { label: string; color: string }> = {
     open: { label: 'Ouvert', color: 'bg-green-500/20 text-green-300 border-green-500/20' },
     active: { label: 'En cours', color: 'bg-amber-500/20 text-amber-300 border-amber-500/20' },
@@ -887,8 +914,67 @@ function ChallengesTab({
     );
   }
 
+  const pendingInvitations = challenges.filter(
+    (c) => c.my_status === 'pending' && c.my_invited_by && c.creator_id !== currentUserId
+  );
+
   return (
     <div className="px-4 pt-3 pb-6 space-y-3">
+      {pendingInvitations.length > 0 && (
+        <div className="bg-gradient-to-br from-amber-500/15 to-amber-600/10 border border-amber-400/40 rounded-3xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-amber-400/20 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-amber-300 text-[18px] fill-1">mark_email_unread</span>
+            </div>
+            <div>
+              <p className="text-sm font-extrabold text-amber-100">
+                {pendingInvitations.length === 1 ? 'Tu as une invitation' : `Tu as ${pendingInvitations.length} invitations`}
+              </p>
+              <p className="text-[10px] text-amber-400/60">Réponds pour confirmer ta participation</p>
+            </div>
+          </div>
+          {pendingInvitations.map((c) => (
+            <div key={c.id} className="bg-black/30 rounded-2xl border border-amber-400/20 p-3 space-y-2.5">
+              <button onClick={() => onSelectChallenge(c)} className="w-full text-left">
+                <p className="text-sm font-bold text-amber-100">{c.title}</p>
+                <p className="text-[11px] text-amber-400/50 mt-0.5">
+                  Invité(e) par {c.creator?.name} · {c.member_count ?? 0}/{c.max_members} membres
+                </p>
+                {c.description && (
+                  <p className="text-xs text-amber-300/40 mt-1 line-clamp-1">{c.description}</p>
+                )}
+              </button>
+              <div className="flex gap-2 pt-1 border-t border-amber-400/10">
+                <button
+                  onClick={() => handleRespond(c.id, false)}
+                  disabled={respondingId === c.id}
+                  className="flex-1 py-2 rounded-xl border border-red-500/40 text-red-400 text-xs font-bold active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
+                >
+                  {respondingId === c.id ? (
+                    <span className="material-symbols-outlined text-[12px] animate-spin">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[12px]">close</span>
+                  )}
+                  Décliner
+                </button>
+                <button
+                  onClick={() => handleRespond(c.id, true)}
+                  disabled={respondingId === c.id}
+                  className="flex-1 py-2 rounded-xl bg-green-500 text-white text-xs font-bold active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5"
+                >
+                  {respondingId === c.id ? (
+                    <span className="material-symbols-outlined text-[12px] animate-spin">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                  )}
+                  Accepter
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {!showCreate && (
         <button
           onClick={onShowCreate}
@@ -1039,11 +1125,41 @@ function ChallengesTab({
                 </div>
               </div>
 
-              {iAmPending && (
+              {iAmInvited && (
+                <div className="mt-2.5 space-y-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleRespond(c.id, false)}
+                      disabled={respondingId === c.id}
+                      className="flex-1 py-2 rounded-xl border border-red-500/40 text-red-400 text-xs font-bold active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
+                    >
+                      {respondingId === c.id ? (
+                        <span className="material-symbols-outlined text-[12px] animate-spin">progress_activity</span>
+                      ) : (
+                        <span className="material-symbols-outlined text-[12px]">close</span>
+                      )}
+                      Décliner
+                    </button>
+                    <button
+                      onClick={() => handleRespond(c.id, true)}
+                      disabled={respondingId === c.id}
+                      className="flex-1 py-2 rounded-xl bg-green-500 text-white text-xs font-bold active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5"
+                    >
+                      {respondingId === c.id ? (
+                        <span className="material-symbols-outlined text-[12px] animate-spin">progress_activity</span>
+                      ) : (
+                        <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                      )}
+                      Accepter
+                    </button>
+                  </div>
+                </div>
+              )}
+              {iAmPending && !iAmInvited && (
                 <div className="mt-2.5 bg-amber-500/10 border border-amber-400/20 rounded-xl px-3 py-2 flex items-center gap-2">
                   <span className="material-symbols-outlined text-amber-400/70 text-[14px]">hourglass_empty</span>
                   <p className="text-xs text-amber-300/70 flex-1">
-                    {iAmInvited ? "Tu as été invité(e) — réponds à l'invitation" : "Candidature envoyée — attente d'acceptation par le créateur"}
+                    Candidature envoyée — attente d'acceptation par le créateur
                   </p>
                   <span className="material-symbols-outlined text-amber-400/40 text-[14px]">chevron_right</span>
                 </div>
