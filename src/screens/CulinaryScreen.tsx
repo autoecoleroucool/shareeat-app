@@ -103,7 +103,8 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
   const [membersLoading, setMembersLoading] = useState(false);
   const [hiddenMemberIds, setHiddenMemberIds] = useState<Set<string>>(new Set());
   const [showHidden, setShowHidden] = useState(false);
-  const [membersSubTab, setMembersSubTab] = useState<'friends' | 'discover'>('friends');
+  const [membersSubTab, setMembersSubTab] = useState<'friends' | 'requests' | 'discover'>('friends');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [discoverMembers, setDiscoverMembers] = useState<DiscoverMember[]>([]);
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
@@ -308,28 +309,43 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
     setDiscoverLoading(false);
   }, [currentUserId]);
 
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
+
   const sendFriendRequest = async (userId: string) => {
     if (!currentUserId) return;
-    const { data } = await supabase.from('friendships').insert({
+    const { data, error } = await supabase.from('friendships').insert({
       requester_id: currentUserId,
       receiver_id: userId,
     }).select().maybeSingle();
+    if (error) {
+      showToast('Erreur lors de l\'envoi de la demande');
+      return;
+    }
     if (data) {
       setDiscoverMembers((prev) => prev.map((m) =>
         m.id === userId ? { ...m, friendshipStatus: 'pending_sent', friendshipId: data.id } : m
       ));
+      showToast('Demande envoyee !');
     }
   };
 
   const acceptFriendRequest = async (userId: string, friendshipId: string) => {
     if (!currentUserId) return;
-    await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
+    const { error } = await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
+    if (error) {
+      showToast('Erreur lors de l\'acceptation');
+      return;
+    }
     setDiscoverMembers((prev) => prev.map((m) =>
       m.id === userId ? { ...m, friendshipStatus: 'accepted' } : m
     ));
     setPendingFriendRequests((n) => Math.max(0, n - 1));
     membersLoadedRef.current = false;
     loadMembers();
+    showToast('Demande acceptee !');
   };
 
   const removeFriend = async (memberId: string) => {
@@ -552,7 +568,7 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
         membersLoadedRef.current = true;
         loadMembers();
       }
-      if (membersSubTab === 'discover') loadDiscover();
+      if (membersSubTab === 'requests' || membersSubTab === 'discover') loadDiscover();
     }
     if (tab === 'invitations') loadInvitations();
     if (tab === 'my_gallery') loadMyPhotos();
@@ -912,6 +928,13 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
       )}
 
       <BottomNav active={activeScreen} onChange={onNavigate} unreadBookings={unreadBookings} />
+
+      {toastMsg && createPortal(
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] bg-black/90 border border-amber-400/30 text-amber-100 text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl animate-fade-in whitespace-nowrap">
+          {toastMsg}
+        </div>,
+        document.body
+      )}
 
       {selectedPhoto && createPortal(
         <div className="fixed inset-0 z-[200] flex flex-col bg-black" onClick={() => setSelectedPhoto(null)}>
@@ -1488,8 +1511,8 @@ function MembersTab({
   onUnhide: (id: string) => void;
   onViewProfile: (userId: string) => void;
   onRemoveFriend: (id: string) => void;
-  subTab: 'friends' | 'discover';
-  onSubTabChange: (t: 'friends' | 'discover') => void;
+  subTab: 'friends' | 'requests' | 'discover';
+  onSubTabChange: (t: 'friends' | 'requests' | 'discover') => void;
   discoverMembers: DiscoverMember[];
   discoverLoading: boolean;
   pendingFriendRequests: number;
@@ -1505,19 +1528,26 @@ function MembersTab({
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${subTab === 'friends' ? 'bg-amber-500 text-white' : 'text-amber-300/40'}`}
           >
             <span className="material-symbols-outlined text-[15px]">group</span>
-            Amis ({members.length})
+            Amis
           </button>
           <button
-            onClick={() => onSubTabChange('discover')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all relative ${subTab === 'discover' ? 'bg-amber-500 text-white' : 'text-amber-300/40'}`}
+            onClick={() => onSubTabChange('requests')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all relative ${subTab === 'requests' ? 'bg-amber-500 text-white' : 'text-amber-300/40'}`}
           >
-            <span className="material-symbols-outlined text-[15px]">person_search</span>
-            Découvrir
+            <span className="material-symbols-outlined text-[15px]">person_add</span>
+            Demandes
             {pendingFriendRequests > 0 && (
               <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full border border-black text-[9px] text-white font-extrabold flex items-center justify-center">
                 {pendingFriendRequests}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => onSubTabChange('discover')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${subTab === 'discover' ? 'bg-amber-500 text-white' : 'text-amber-300/40'}`}
+          >
+            <span className="material-symbols-outlined text-[15px]">person_search</span>
+            Cercle
           </button>
         </div>
       </div>
@@ -1538,6 +1568,15 @@ function MembersTab({
         />
       )}
 
+      {subTab === 'requests' && (
+        <RequestsSubTab
+          members={discoverMembers.filter((m) => m.friendshipStatus === 'pending_received')}
+          loading={discoverLoading}
+          onViewProfile={onViewProfile}
+          onAcceptFriendRequest={onAcceptFriendRequest}
+        />
+      )}
+
       {subTab === 'discover' && (
         <DiscoverSubTab
           members={discoverMembers}
@@ -1547,6 +1586,69 @@ function MembersTab({
           onAcceptFriendRequest={onAcceptFriendRequest}
         />
       )}
+    </div>
+  );
+}
+
+function RequestsSubTab({
+  members,
+  loading,
+  onViewProfile,
+  onAcceptFriendRequest,
+}: {
+  members: DiscoverMember[];
+  loading: boolean;
+  onViewProfile: (userId: string) => void;
+  onAcceptFriendRequest: (id: string, friendshipId: string) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="px-4 space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="bg-white/5 rounded-2xl p-4 animate-pulse h-16" />
+        ))}
+      </div>
+    );
+  }
+
+  if (members.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+        <div className="w-16 h-16 bg-amber-400/10 rounded-full flex items-center justify-center mb-4">
+          <span className="material-symbols-outlined text-amber-400/40 text-[32px]">inbox</span>
+        </div>
+        <p className="text-amber-300/50 font-semibold">Aucune demande en attente</p>
+        <p className="text-amber-400/30 text-sm mt-1">Les demandes d'amis apparaitront ici</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 space-y-2">
+      {members.map((m) => (
+        <div key={m.id} className="flex items-center gap-3 bg-white/5 rounded-2xl border border-amber-400/10 p-3">
+          <button onClick={() => onViewProfile(m.id)} className="shrink-0">
+            <img
+              src={m.avatar_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'}
+              alt={m.name}
+              className="w-11 h-11 rounded-full object-cover border border-amber-400/20"
+            />
+          </button>
+          <div className="flex-1 min-w-0">
+            <button onClick={() => onViewProfile(m.id)} className="text-left">
+              <p className="text-sm font-bold text-amber-100 truncate">{m.name}</p>
+              <p className="text-[11px] text-amber-400/40">{m.shares_count} partages</p>
+            </button>
+          </div>
+          <button
+            onClick={() => m.friendshipId && onAcceptFriendRequest(m.id, m.friendshipId)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-bold shrink-0 active:scale-95 transition-all"
+          >
+            <span className="material-symbols-outlined text-[14px]">check</span>
+            Accepter
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
