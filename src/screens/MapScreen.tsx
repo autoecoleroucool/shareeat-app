@@ -329,8 +329,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
     const map = mapRef.current;
     if (!map) return;
 
-    const showChallenges = categoryFilter === 'culinary_circle' || categoryFilter === 'all';
-    if (!showChallenges) {
+    if (categoryFilter !== 'culinary_circle') {
       challengeMarkersRef.current.forEach((m) => m.remove());
       challengeMarkersRef.current.clear();
       return;
