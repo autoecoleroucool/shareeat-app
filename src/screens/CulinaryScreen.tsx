@@ -137,6 +137,7 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
   const [feedChallengeFilter, setFeedChallengeFilter] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const membersLoadedRef = useRef(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -327,6 +328,7 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
       m.id === userId ? { ...m, friendshipStatus: 'accepted' } : m
     ));
     setPendingFriendRequests((n) => Math.max(0, n - 1));
+    membersLoadedRef.current = false;
     loadMembers();
   };
 
@@ -337,10 +339,21 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
       .delete()
       .or(`and(requester_id.eq.${currentUserId},receiver_id.eq.${memberId}),and(requester_id.eq.${memberId},receiver_id.eq.${currentUserId})`);
     setMembers((prev) => prev.filter((m) => m.id !== memberId));
+    membersLoadedRef.current = false;
     setDiscoverMembers((prev) => prev.map((m) =>
       m.id === memberId ? { ...m, friendshipStatus: 'none', friendshipId: undefined } : m
     ));
   };
+
+  const loadPendingFriendCount = useCallback(async () => {
+    if (!currentUserId) return;
+    const { data } = await supabase
+      .from('friendships')
+      .select('id')
+      .eq('receiver_id', currentUserId)
+      .eq('status', 'pending');
+    setPendingFriendRequests((data ?? []).length);
+  }, [currentUserId]);
 
   const loadInvitations = useCallback(async () => {
     if (!currentUserId) return;
@@ -530,14 +543,21 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
   }, [currentUserId, loadMyAcceptedChallenges]);
 
   useEffect(() => {
+    if (currentUserId) loadPendingFriendCount();
+  }, [currentUserId, loadPendingFriendCount]);
+
+  useEffect(() => {
     if (tab === 'members') {
-      if (membersSubTab === 'friends' && members.length === 0) loadMembers();
+      if (membersSubTab === 'friends' && !membersLoadedRef.current) {
+        membersLoadedRef.current = true;
+        loadMembers();
+      }
       if (membersSubTab === 'discover') loadDiscover();
     }
     if (tab === 'invitations') loadInvitations();
     if (tab === 'my_gallery') loadMyPhotos();
     if (tab === 'challenges') loadChallenges();
-  }, [tab, membersSubTab, members.length, loadMembers, loadDiscover, loadInvitations, loadMyPhotos, loadChallenges]);
+  }, [tab, membersSubTab, loadMembers, loadDiscover, loadInvitations, loadMyPhotos, loadChallenges]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
