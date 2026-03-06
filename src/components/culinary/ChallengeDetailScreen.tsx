@@ -97,6 +97,7 @@ export default function ChallengeDetailScreen({ challenge, currentUserId, onClos
   const isClosed = challenge.status === 'closed';
   const acceptedCount = members.filter((m) => m.status === 'accepted').length;
   const pendingCount = members.filter((m) => m.status === 'pending' && m.user_id !== currentUserId).length;
+  const isFull = acceptedCount >= challenge.max_members;
   const canClose = isCreator && !isClosed && challenge.status !== 'completed' && acceptedCount >= 3;
 
   const loadMembers = useCallback(async () => {
@@ -194,6 +195,7 @@ export default function ChallengeDetailScreen({ challenge, currentUserId, onClos
 
   const acceptMember = async (member: CulinaryChallengeMember) => {
     if (!isCreator) return;
+    if (isFull) return;
     await supabase
       .from('culinary_challenge_members')
       .update({ status: 'accepted' })
@@ -447,7 +449,26 @@ export default function ChallengeDetailScreen({ challenge, currentUserId, onClos
           currentUserId={currentUserId}
         />
 
-        {!myMembership && (challenge.status === 'open' || challenge.status === 'active') && acceptedCount < challenge.max_members && (
+        {isCreator && isFull && !isClosed && (
+          <div className="mt-3 bg-orange-500/15 border border-orange-500/30 rounded-2xl px-4 py-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-orange-400 text-[16px] animate-pulse">warning</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-extrabold text-orange-300">Table complète — fermez le cercle</p>
+              <p className="text-[10px] text-orange-300/60 mt-0.5">Le maximum de {challenge.max_members} membres est atteint. Fermez le cercle pour démarrer.</p>
+            </div>
+            <button
+              onClick={() => setShowCloseConfirm(true)}
+              className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl bg-orange-500 text-white text-xs font-bold active:scale-95 transition-all"
+            >
+              <span className="material-symbols-outlined text-[13px]">lock</span>
+              Fermer
+            </button>
+          </div>
+        )}
+
+        {!myMembership && (challenge.status === 'open' || challenge.status === 'active') && !isFull && (
           <button
             onClick={joinChallenge}
             disabled={joining}
@@ -459,6 +480,13 @@ export default function ChallengeDetailScreen({ challenge, currentUserId, onClos
               <><span className="material-symbols-outlined text-[14px]">group_add</span>Candidater pour rejoindre</>
             )}
           </button>
+        )}
+
+        {!myMembership && (challenge.status === 'open' || challenge.status === 'active') && isFull && (
+          <div className="mt-3 w-full py-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center gap-2">
+            <span className="material-symbols-outlined text-amber-400/40 text-[16px]">event_seat</span>
+            <span className="text-sm font-bold text-amber-300/40">Table complète — plus de places disponibles</span>
+          </div>
         )}
 
         {isPending && myMembership?.invited_by && (
@@ -553,6 +581,7 @@ export default function ChallengeDetailScreen({ challenge, currentUserId, onClos
             currentUserId={currentUserId}
             isCreator={isCreator}
             isAccepted={isAccepted}
+            isFull={isFull}
             challenge={challenge}
             acceptedCount={acceptedCount}
             onAcceptMember={acceptMember}
@@ -913,6 +942,7 @@ function MembersTab({
   currentUserId,
   isCreator,
   isAccepted,
+  isFull,
   challenge,
   acceptedCount,
   onAcceptMember,
@@ -926,6 +956,7 @@ function MembersTab({
   currentUserId: string;
   isCreator: boolean;
   isAccepted: boolean;
+  isFull: boolean;
   challenge: CulinaryChallenge;
   acceptedCount: number;
   onAcceptMember: (m: CulinaryChallengeMember) => void;
@@ -944,7 +975,7 @@ function MembersTab({
     );
   }
 
-  const canInvite = isAccepted && challenge.status === 'open' && acceptedCount < challenge.max_members;
+  const canInvite = isAccepted && challenge.status === 'open' && !isFull;
   const pendingMembers = members.filter((m) => m.status === 'pending');
   const acceptedMembers = members.filter((m) => m.status === 'accepted');
   const declinedMembers = members.filter((m) => m.status === 'declined');
@@ -993,10 +1024,12 @@ function MembersTab({
                       <>
                         <button
                           onClick={() => onAcceptMember(member)}
-                          className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-green-500 text-white text-[11px] font-bold active:scale-95 transition-all shadow-lg shadow-green-500/20"
+                          disabled={isFull}
+                          title={isFull ? 'Table complète' : undefined}
+                          className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-green-500 text-white text-[11px] font-bold active:scale-95 transition-all shadow-lg shadow-green-500/20 disabled:opacity-30 disabled:cursor-not-allowed"
                         >
                           <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                          Accepter
+                          {isFull ? 'Complet' : 'Accepter'}
                         </button>
                         <button
                           onClick={() => onRemoveMember(member)}
