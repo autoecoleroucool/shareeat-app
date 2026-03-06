@@ -177,7 +177,7 @@ export default function BookingModal({ meal, hostName, hostAvatar, timing, onClo
           {(step === 'confirm' || step === 'blocked') && (
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/40 backdrop-blur flex items-center justify-center"
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/40 backdrop-blur flex items-center justify-center z-10"
             >
               <span className="material-symbols-outlined text-white text-[20px]">close</span>
             </button>
