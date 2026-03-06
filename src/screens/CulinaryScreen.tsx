@@ -28,6 +28,19 @@ interface CircleMember {
   photos: CulinaryPhoto[];
 }
 
+type FriendshipStatus = 'none' | 'pending_sent' | 'pending_received' | 'accepted';
+
+interface DiscoverMember {
+  id: string;
+  name: string;
+  avatar_url: string;
+  shares_count: number;
+  rating: number;
+  location_name?: string;
+  friendshipStatus: FriendshipStatus;
+  friendshipId?: string;
+}
+
 function compressImage(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -90,6 +103,10 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
   const [membersLoading, setMembersLoading] = useState(false);
   const [hiddenMemberIds, setHiddenMemberIds] = useState<Set<string>>(new Set());
   const [showHidden, setShowHidden] = useState(false);
+  const [membersSubTab, setMembersSubTab] = useState<'friends' | 'discover'>('friends');
+  const [discoverMembers, setDiscoverMembers] = useState<DiscoverMember[]>([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
 
   const [invitations, setInvitations] = useState<CulinaryInvitation[]>([]);
   const [invLoading, setInvLoading] = useState(false);
@@ -169,33 +186,45 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
     if (!currentUserId) return;
     setMembersLoading(true);
 
-    const [profilesResult, hiddenResult] = await Promise.all([
+    const [friendshipsResult, hiddenResult] = await Promise.all([
       supabase
-        .from('profiles')
-        .select('id, name, avatar_url, shares_count, rating, location_name')
-        .gte('shares_count', 10)
-        .neq('id', currentUserId)
-        .order('shares_count', { ascending: false })
-        .limit(100),
+        .from('friendships')
+        .select('id, requester_id, receiver_id, status')
+        .or(`requester_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
+        .eq('status', 'accepted'),
       supabase
         .from('culinary_circle_hidden_members')
         .select('hidden_user_id')
         .eq('user_id', currentUserId),
     ]);
 
-    const profiles = profilesResult.data ?? [];
     const hiddenIds = new Set<string>(
       (hiddenResult.data ?? []).map((r: { hidden_user_id: string }) => r.hidden_user_id)
     );
     setHiddenMemberIds(hiddenIds);
 
-    if (!profiles.length) { setMembers([]); setMembersLoading(false); return; }
+    const friendships = friendshipsResult.data ?? [];
+    const friendIds = friendships.map((f: { requester_id: string; receiver_id: string }) =>
+      f.requester_id === currentUserId ? f.receiver_id : f.requester_id
+    );
 
-    const ids = profiles.map((p: { id: string }) => p.id);
+    if (!friendIds.length) {
+      setMembers([]);
+      setMembersLoading(false);
+      return;
+    }
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, name, avatar_url, shares_count, rating, location_name')
+      .in('id', friendIds);
+
+    if (!profiles || !profiles.length) { setMembers([]); setMembersLoading(false); return; }
+
     const { data: photos } = await supabase
       .from('culinary_circle_photos')
       .select('id, user_id, image_url, caption, meal_name, likes_count, challenge_id, created_at')
-      .in('user_id', ids)
+      .in('user_id', friendIds)
       .order('created_at', { ascending: false });
 
     const photosByUser: Record<string, CulinaryPhoto[]> = {};
@@ -218,6 +247,100 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
     );
     setMembersLoading(false);
   }, [currentUserId]);
+
+  const loadDiscover = useCallback(async () => {
+    if (!currentUserId) return;
+    setDiscoverLoading(true);
+
+    const [profilesResult, friendshipsResult] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, name, avatar_url, shares_count, rating, location_name')
+        .gte('shares_count', 10)
+        .neq('id', currentUserId)
+        .order('shares_count', { ascending: false })
+        .limit(50),
+      supabase
+        .from('friendships')
+        .select('id, requester_id, receiver_id, status')
+        .or(`requester_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`),
+    ]);
+
+    const friendships = friendshipsResult.data ?? [];
+    const friendshipMap = new Map<string, { id: string; status: string; isRequester: boolean }>();
+    friendships.forEach((f: { id: string; requester_id: string; receiver_id: string; status: string }) => {
+      const otherId = f.requester_id === currentUserId ? f.receiver_id : f.requester_id;
+      friendshipMap.set(otherId, {
+        id: f.id,
+        status: f.status,
+        isRequester: f.requester_id === currentUserId,
+      });
+    });
+
+    const pendingCount = friendships.filter(
+      (f: { receiver_id: string; status: string }) => f.receiver_id === currentUserId && f.status === 'pending'
+    ).length;
+    setPendingFriendRequests(pendingCount);
+
+    type PartialProfile = { id: string; name: string; avatar_url: string; shares_count: number; rating: number; location_name?: string };
+    const members = ((profilesResult.data ?? []) as unknown as PartialProfile[]).map((p) => {
+      const fs = friendshipMap.get(p.id);
+      let friendshipStatus: FriendshipStatus = 'none';
+      if (fs) {
+        if (fs.status === 'accepted') friendshipStatus = 'accepted';
+        else if (fs.status === 'pending' && fs.isRequester) friendshipStatus = 'pending_sent';
+        else if (fs.status === 'pending' && !fs.isRequester) friendshipStatus = 'pending_received';
+      }
+      return {
+        id: p.id,
+        name: p.name,
+        avatar_url: p.avatar_url,
+        shares_count: p.shares_count,
+        rating: p.rating,
+        location_name: p.location_name,
+        friendshipStatus,
+        friendshipId: fs?.id,
+      };
+    });
+
+    setDiscoverMembers(members);
+    setDiscoverLoading(false);
+  }, [currentUserId]);
+
+  const sendFriendRequest = async (userId: string) => {
+    if (!currentUserId) return;
+    const { data } = await supabase.from('friendships').insert({
+      requester_id: currentUserId,
+      receiver_id: userId,
+    }).select().maybeSingle();
+    if (data) {
+      setDiscoverMembers((prev) => prev.map((m) =>
+        m.id === userId ? { ...m, friendshipStatus: 'pending_sent', friendshipId: data.id } : m
+      ));
+    }
+  };
+
+  const acceptFriendRequest = async (userId: string, friendshipId: string) => {
+    if (!currentUserId) return;
+    await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId);
+    setDiscoverMembers((prev) => prev.map((m) =>
+      m.id === userId ? { ...m, friendshipStatus: 'accepted' } : m
+    ));
+    setPendingFriendRequests((n) => Math.max(0, n - 1));
+    loadMembers();
+  };
+
+  const removeFriend = async (memberId: string) => {
+    if (!currentUserId) return;
+    await supabase
+      .from('friendships')
+      .delete()
+      .or(`and(requester_id.eq.${currentUserId},receiver_id.eq.${memberId}),and(requester_id.eq.${memberId},receiver_id.eq.${currentUserId})`);
+    setMembers((prev) => prev.filter((m) => m.id !== memberId));
+    setDiscoverMembers((prev) => prev.map((m) =>
+      m.id === memberId ? { ...m, friendshipStatus: 'none', friendshipId: undefined } : m
+    ));
+  };
 
   const loadInvitations = useCallback(async () => {
     if (!currentUserId) return;
@@ -368,29 +491,6 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
       return;
     }
 
-    const { error: insertMealError } = await supabase.from('meals').insert({
-      title: challengeTitle.trim(),
-      description: challengeDesc.trim() || 'Défi Cercle Culinaire',
-      image_url: '',
-      host_id: currentUserId,
-      slots_total: 5,
-      slots_taken: 0,
-      confirmed: false,
-      location_lat: position.lat,
-      location_lng: position.lng,
-      location_name: position.name,
-      allergens: [],
-      meal_date: new Date().toISOString(),
-      price: 0,
-      is_premium_meal: false,
-      meal_type: 'culinary_circle',
-      category: 'homemade_meal',
-      expires_at: null,
-      quantity: null,
-    });
-
-    if (insertMealError) setChallengeError('Défi créé, mais erreur carte : ' + insertMealError.message);
-
     await supabase.from('culinary_challenge_members').insert({
       challenge_id: newChallenge.id,
       user_id: currentUserId,
@@ -430,11 +530,14 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
   }, [currentUserId, loadMyAcceptedChallenges]);
 
   useEffect(() => {
-    if (tab === 'members' && members.length === 0) loadMembers();
+    if (tab === 'members') {
+      if (membersSubTab === 'friends' && members.length === 0) loadMembers();
+      if (membersSubTab === 'discover') loadDiscover();
+    }
     if (tab === 'invitations') loadInvitations();
     if (tab === 'my_gallery') loadMyPhotos();
     if (tab === 'challenges') loadChallenges();
-  }, [tab, members.length, loadMembers, loadInvitations, loadMyPhotos, loadChallenges]);
+  }, [tab, membersSubTab, members.length, loadMembers, loadDiscover, loadInvitations, loadMyPhotos, loadChallenges]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -640,6 +743,11 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
                   {myPendingChallenges}
                 </span>
               )}
+              {t.id === 'members' && pendingFriendRequests > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 rounded-full border border-black text-[8px] text-white font-extrabold flex items-center justify-center">
+                  {pendingFriendRequests}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -688,6 +796,14 @@ export default function CulinaryScreen({ activeScreen, onNavigate, unreadBooking
             onHide={hideMember}
             onUnhide={unhideMember}
             onViewProfile={setViewProfileUserId}
+            onRemoveFriend={removeFriend}
+            subTab={membersSubTab}
+            onSubTabChange={(t) => setMembersSubTab(t)}
+            discoverMembers={discoverMembers}
+            discoverLoading={discoverLoading}
+            pendingFriendRequests={pendingFriendRequests}
+            onSendFriendRequest={sendFriendRequest}
+            onAcceptFriendRequest={acceptFriendRequest}
           />
         )}
         {tab === 'invitations' && (
@@ -1332,6 +1448,14 @@ function MembersTab({
   onHide,
   onUnhide,
   onViewProfile,
+  onRemoveFriend,
+  subTab,
+  onSubTabChange,
+  discoverMembers,
+  discoverLoading,
+  pendingFriendRequests,
+  onSendFriendRequest,
+  onAcceptFriendRequest,
 }: {
   members: CircleMember[];
   loading: boolean;
@@ -1343,11 +1467,99 @@ function MembersTab({
   onHide: (id: string) => void;
   onUnhide: (id: string) => void;
   onViewProfile: (userId: string) => void;
+  onRemoveFriend: (id: string) => void;
+  subTab: 'friends' | 'discover';
+  onSubTabChange: (t: 'friends' | 'discover') => void;
+  discoverMembers: DiscoverMember[];
+  discoverLoading: boolean;
+  pendingFriendRequests: number;
+  onSendFriendRequest: (id: string) => void;
+  onAcceptFriendRequest: (id: string, friendshipId: string) => void;
+}) {
+  return (
+    <div className="pb-6">
+      <div className="px-4 pt-3 pb-3">
+        <div className="flex items-center gap-1 bg-white/5 rounded-2xl p-1">
+          <button
+            onClick={() => onSubTabChange('friends')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${subTab === 'friends' ? 'bg-amber-500 text-white' : 'text-amber-300/40'}`}
+          >
+            <span className="material-symbols-outlined text-[15px]">group</span>
+            Amis ({members.length})
+          </button>
+          <button
+            onClick={() => onSubTabChange('discover')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all relative ${subTab === 'discover' ? 'bg-amber-500 text-white' : 'text-amber-300/40'}`}
+          >
+            <span className="material-symbols-outlined text-[15px]">person_search</span>
+            Découvrir
+            {pendingFriendRequests > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full border border-black text-[9px] text-white font-extrabold flex items-center justify-center">
+                {pendingFriendRequests}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {subTab === 'friends' && (
+        <FriendsSubTab
+          members={members}
+          loading={loading}
+          hiddenMemberIds={hiddenMemberIds}
+          showHidden={showHidden}
+          onToggleShowHidden={onToggleShowHidden}
+          onInvite={onInvite}
+          onContact={onContact}
+          onHide={onHide}
+          onUnhide={onUnhide}
+          onViewProfile={onViewProfile}
+          onRemoveFriend={onRemoveFriend}
+        />
+      )}
+
+      {subTab === 'discover' && (
+        <DiscoverSubTab
+          members={discoverMembers}
+          loading={discoverLoading}
+          onViewProfile={onViewProfile}
+          onSendFriendRequest={onSendFriendRequest}
+          onAcceptFriendRequest={onAcceptFriendRequest}
+        />
+      )}
+    </div>
+  );
+}
+
+function FriendsSubTab({
+  members,
+  loading,
+  hiddenMemberIds,
+  showHidden,
+  onToggleShowHidden,
+  onInvite,
+  onContact,
+  onHide,
+  onUnhide,
+  onViewProfile,
+  onRemoveFriend,
+}: {
+  members: CircleMember[];
+  loading: boolean;
+  hiddenMemberIds: Set<string>;
+  showHidden: boolean;
+  onToggleShowHidden: () => void;
+  onInvite: (m: CircleMember) => void;
+  onContact: (hostId: string, hostName: string, hostAvatar: string) => void;
+  onHide: (id: string) => void;
+  onUnhide: (id: string) => void;
+  onViewProfile: (userId: string) => void;
+  onRemoveFriend: (id: string) => void;
 }) {
   if (loading) {
     return (
-      <div className="px-4 pt-3 space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
+      <div className="px-4 space-y-3">
+        {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="bg-white/5 rounded-2xl p-4 animate-pulse h-20" />
         ))}
       </div>
@@ -1359,21 +1571,21 @@ function MembersTab({
 
   if (members.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
+      <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
         <div className="w-16 h-16 bg-amber-400/10 rounded-full flex items-center justify-center mb-4">
           <span className="material-symbols-outlined text-amber-400/40 text-[32px]">group</span>
         </div>
-        <p className="text-amber-300/50 font-semibold">Aucun membre pour l'instant</p>
-        <p className="text-amber-400/30 text-sm mt-1">Rejoins la communauté et partage tes repas</p>
+        <p className="text-amber-300/50 font-semibold">Aucun ami pour l'instant</p>
+        <p className="text-amber-400/30 text-sm mt-1">Va dans "Decouvrir" pour ajouter des membres du Cercle</p>
       </div>
     );
   }
 
   return (
-    <div className="px-4 pt-3 pb-6 space-y-2">
-      <div className="flex items-center justify-between mb-3">
+    <div className="px-4 space-y-2">
+      <div className="flex items-center justify-between mb-1">
         <p className="text-[10px] uppercase tracking-widest font-bold text-amber-400/40">
-          {visibleMembers.length} membre{visibleMembers.length > 1 ? 's' : ''} du Cercle
+          {visibleMembers.length} ami{visibleMembers.length > 1 ? 's' : ''}
         </p>
         {hiddenMembers.length > 0 && (
           <button
@@ -1383,7 +1595,7 @@ function MembersTab({
             <span className="material-symbols-outlined text-[13px]">
               {showHidden ? 'visibility_off' : 'visibility'}
             </span>
-            {showHidden ? 'Masquer' : `${hiddenMembers.length} masqué${hiddenMembers.length > 1 ? 's' : ''}`}
+            {showHidden ? 'Masquer' : `${hiddenMembers.length} masque${hiddenMembers.length > 1 ? 's' : ''}`}
           </button>
         )}
       </div>
@@ -1398,6 +1610,7 @@ function MembersTab({
           onHide={onHide}
           onUnhide={onUnhide}
           onViewProfile={onViewProfile}
+          onRemoveFriend={onRemoveFriend}
         />
       ))}
 
@@ -1405,7 +1618,7 @@ function MembersTab({
         <>
           <div className="pt-2 pb-1">
             <p className="text-[10px] uppercase tracking-widest font-bold text-amber-400/20">
-              Masqués de mon Cercle
+              Masques
             </p>
           </div>
           {hiddenMembers.map((member) => (
@@ -1418,10 +1631,181 @@ function MembersTab({
               onHide={onHide}
               onUnhide={onUnhide}
               onViewProfile={onViewProfile}
+              onRemoveFriend={onRemoveFriend}
             />
           ))}
         </>
       )}
+    </div>
+  );
+}
+
+function DiscoverSubTab({
+  members,
+  loading,
+  onViewProfile,
+  onSendFriendRequest,
+  onAcceptFriendRequest,
+}: {
+  members: DiscoverMember[];
+  loading: boolean;
+  onViewProfile: (userId: string) => void;
+  onSendFriendRequest: (id: string) => void;
+  onAcceptFriendRequest: (id: string, friendshipId: string) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="px-4 space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="bg-white/5 rounded-2xl p-4 animate-pulse h-16" />
+        ))}
+      </div>
+    );
+  }
+
+  const pendingReceived = members.filter((m) => m.friendshipStatus === 'pending_received');
+  const others = members.filter((m) => m.friendshipStatus !== 'pending_received');
+
+  if (members.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+        <div className="w-16 h-16 bg-amber-400/10 rounded-full flex items-center justify-center mb-4">
+          <span className="material-symbols-outlined text-amber-400/40 text-[32px]">person_search</span>
+        </div>
+        <p className="text-amber-300/50 font-semibold">Aucun membre a decouvrir</p>
+        <p className="text-amber-400/30 text-sm mt-1">Les membres du Cercle avec 10+ partages apparaitront ici</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 space-y-2">
+      {pendingReceived.length > 0 && (
+        <>
+          <p className="text-[10px] uppercase tracking-widest font-bold text-amber-400/60 mb-2">
+            Demandes recues ({pendingReceived.length})
+          </p>
+          {pendingReceived.map((m) => (
+            <DiscoverCard
+              key={m.id}
+              member={m}
+              onViewProfile={onViewProfile}
+              onSendFriendRequest={onSendFriendRequest}
+              onAcceptFriendRequest={onAcceptFriendRequest}
+            />
+          ))}
+          <div className="pt-1 pb-1 border-t border-amber-400/10" />
+          <p className="text-[10px] uppercase tracking-widest font-bold text-amber-400/40 mb-2">
+            Membres du Cercle
+          </p>
+        </>
+      )}
+      {others.map((m) => (
+        <DiscoverCard
+          key={m.id}
+          member={m}
+          onViewProfile={onViewProfile}
+          onSendFriendRequest={onSendFriendRequest}
+          onAcceptFriendRequest={onAcceptFriendRequest}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DiscoverCard({
+  member,
+  onViewProfile,
+  onSendFriendRequest,
+  onAcceptFriendRequest,
+}: {
+  member: DiscoverMember;
+  onViewProfile: (userId: string) => void;
+  onSendFriendRequest: (id: string) => void;
+  onAcceptFriendRequest: (id: string, friendshipId: string) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  const handleAction = async () => {
+    if (loading) return;
+    setLoading(true);
+    if (member.friendshipStatus === 'none') {
+      await onSendFriendRequest(member.id);
+    } else if (member.friendshipStatus === 'pending_received' && member.friendshipId) {
+      await onAcceptFriendRequest(member.id, member.friendshipId);
+    }
+    setLoading(false);
+  };
+
+  const actionButton = () => {
+    if (member.friendshipStatus === 'accepted') {
+      return (
+        <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-green-500/15 border border-green-500/20 text-green-400 text-[11px] font-bold shrink-0">
+          <span className="material-symbols-outlined text-[13px]">check_circle</span>
+          Ami
+        </div>
+      );
+    }
+    if (member.friendshipStatus === 'pending_sent') {
+      return (
+        <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white/5 border border-amber-400/15 text-amber-400/40 text-[11px] font-bold shrink-0">
+          <span className="material-symbols-outlined text-[13px]">schedule</span>
+          En attente
+        </div>
+      );
+    }
+    if (member.friendshipStatus === 'pending_received') {
+      return (
+        <button
+          onClick={handleAction}
+          disabled={loading}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-[11px] font-bold shrink-0 active:scale-95 transition-all disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-[13px]">person_add</span>
+          Accepter
+        </button>
+      );
+    }
+    return (
+      <button
+        onClick={handleAction}
+        disabled={loading}
+        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-300 text-[11px] font-bold shrink-0 active:scale-95 transition-all disabled:opacity-50"
+      >
+        <span className="material-symbols-outlined text-[13px]">person_add</span>
+        Ajouter
+      </button>
+    );
+  };
+
+  return (
+    <div className="bg-white/5 border border-amber-400/10 rounded-2xl p-3 flex items-center gap-3">
+      <button onClick={() => onViewProfile(member.id)} className="shrink-0">
+        <img
+          src={member.avatar_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'}
+          alt={member.name}
+          className="w-11 h-11 rounded-full object-cover border-2 border-amber-400/20"
+        />
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1">
+          <p className="text-sm font-bold text-amber-100 truncate">{member.name}</p>
+          <span className="material-symbols-outlined text-amber-400 text-[12px] fill-1 shrink-0">verified</span>
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <p className="text-[10px] text-amber-400/40">{member.shares_count} partages</p>
+          {member.rating > 0 && (
+            <div className="flex items-center gap-0.5">
+              <span className="material-symbols-outlined text-amber-400 text-[10px] fill-1">star</span>
+              <span className="text-[10px] text-amber-300/50">{member.rating.toFixed(1)}</span>
+            </div>
+          )}
+        </div>
+        {member.location_name && (
+          <p className="text-[10px] text-amber-400/30 truncate">{member.location_name}</p>
+        )}
+      </div>
+      {actionButton()}
     </div>
   );
 }
@@ -1434,6 +1818,7 @@ function MemberCard({
   onHide,
   onUnhide,
   onViewProfile,
+  onRemoveFriend,
 }: {
   member: CircleMember;
   isHidden: boolean;
@@ -1442,6 +1827,7 @@ function MemberCard({
   onHide: (id: string) => void;
   onUnhide: (id: string) => void;
   onViewProfile: (userId: string) => void;
+  onRemoveFriend: (id: string) => void;
 }) {
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -1536,7 +1922,7 @@ function MemberCard({
       {showConfirm && (
         <div className="mt-3 bg-black/40 rounded-2xl border border-red-500/20 p-3 space-y-2">
           <p className="text-xs text-amber-200/70 leading-relaxed">
-            Masquer <span className="font-bold text-amber-100">{member.name}</span> de ton Cercle ? Il ne sera plus visible dans ta liste.
+            Retirer <span className="font-bold text-amber-100">{member.name}</span> de tes amis ?
           </p>
           <div className="flex gap-2">
             <button
@@ -1546,11 +1932,11 @@ function MemberCard({
               Annuler
             </button>
             <button
-              onClick={() => { onHide(member.id); setShowConfirm(false); }}
+              onClick={() => { onRemoveFriend(member.id); setShowConfirm(false); }}
               className="flex-1 py-2 rounded-xl bg-red-500/80 text-white text-xs font-bold active:scale-95 transition-all flex items-center justify-center gap-1"
             >
               <span className="material-symbols-outlined text-[12px]">person_remove</span>
-              Masquer
+              Retirer
             </button>
           </div>
         </div>
