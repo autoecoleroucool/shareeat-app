@@ -43,7 +43,7 @@ export default function ReviewModal({
     });
 
     if (err) {
-      if (err.code === '23505') {
+      if (err.code === '23505' || err.message?.includes('unique')) {
         setError('Tu as déjà laissé un avis pour ce repas.');
       } else {
         setError('Une erreur est survenue. Réessaie.');
