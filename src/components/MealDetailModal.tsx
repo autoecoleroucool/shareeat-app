@@ -135,7 +135,7 @@ const MealDetailModal = memo(function MealDetailModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative h-56 w-full shrink-0">
-          {isFoodRescue ? (
+          {isFoodRescue && !meal.image_url ? (
             <div className="w-full h-full bg-green-50 flex items-center justify-center">
               <span className="text-8xl">♻️</span>
             </div>
