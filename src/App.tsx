@@ -98,6 +98,21 @@ export default function App() {
         setScreen('map');
         setShowOnboarding(false);
         userIdRef.current = null;
+        setUnreadBookings(0);
+        setUnreadMessages(0);
+        setToastQueue([]);
+        setOpenConversationId(null);
+        setEditMeal(null);
+        try {
+          const keysToKeep = ['shareeat_pending_referrer'];
+          const savedKeys: Record<string, string> = {};
+          keysToKeep.forEach((k) => {
+            const v = localStorage.getItem(k);
+            if (v) savedKeys[k] = v;
+          });
+          localStorage.clear();
+          Object.entries(savedKeys).forEach(([k, v]) => localStorage.setItem(k, v));
+        } catch { /* ignore */ }
       } else {
         userIdRef.current = session.user.id;
         checkOnboarding(session.user.id);

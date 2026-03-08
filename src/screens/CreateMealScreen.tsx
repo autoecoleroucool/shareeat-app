@@ -201,16 +201,29 @@ export default function CreateMealScreen({ onNavigate, editMeal }: CreateMealScr
 
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) {
-      const compressed = await compressImage(file);
-      setImageFile(compressed);
-      if (imagePreviewRef.current) {
-        URL.revokeObjectURL(imagePreviewRef.current);
-      }
-      const url = URL.createObjectURL(compressed);
-      imagePreviewRef.current = url;
-      setImagePreview(url);
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Le fichier sélectionné doit être une image (JPG, PNG, WEBP, etc.).');
+      e.target.value = '';
+      return;
     }
+
+    const MAX_SIZE_MB = 20;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      setError(`L'image est trop grande. Taille maximum : ${MAX_SIZE_MB} Mo.`);
+      e.target.value = '';
+      return;
+    }
+
+    const compressed = await compressImage(file);
+    setImageFile(compressed);
+    if (imagePreviewRef.current) {
+      URL.revokeObjectURL(imagePreviewRef.current);
+    }
+    const url = URL.createObjectURL(compressed);
+    imagePreviewRef.current = url;
+    setImagePreview(url);
   }
 
   async function handlePublish() {
@@ -473,25 +486,35 @@ export default function CreateMealScreen({ onNavigate, editMeal }: CreateMealScr
 
         <section className="px-6 mt-6 space-y-6">
           <div className="space-y-2">
-            <label className="block text-sm font-bold text-slate-700 ml-1">
-              {isFoodRescue ? 'Que veux-tu sauver ?' : 'Qu\'est-ce que tu cuisines ?'}
-            </label>
+            <div className="flex items-center justify-between ml-1">
+              <label className="text-sm font-bold text-slate-700">
+                {isFoodRescue ? 'Que veux-tu sauver ?' : 'Qu\'est-ce que tu cuisines ?'}
+              </label>
+              <span className={`text-[11px] font-medium ${title.length > 90 ? 'text-amber-500' : 'text-slate-400'}`}>{title.length}/100</span>
+            </div>
             <input
               value={title}
+              maxLength={100}
               onChange={(e) => { setTitle(e.target.value); if (fieldErrors.title) validateField('title', e.target.value); }}
               onBlur={(e) => validateField('title', e.target.value)}
+              aria-required="true"
+              aria-invalid={!!fieldErrors.title}
               className={`w-full h-14 px-6 rounded-full border bg-slate-50 outline-none transition-all text-slate-900 placeholder:text-slate-400 ${fieldErrors.title ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}
               placeholder={isFoodRescue ? 'Ex: Légumes du marché, Baguettes, Yaourts...' : 'Ex: Lasagnes maison, Ratatouille...'}
             />
             {fieldErrors.title && (
-              <p className="text-xs text-red-500 ml-2 mt-1">{fieldErrors.title}</p>
+              <p className="text-xs text-red-500 ml-2 mt-1" role="alert">{fieldErrors.title}</p>
             )}
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-bold text-slate-700 ml-1">Description</label>
+            <div className="flex items-center justify-between ml-1">
+              <label className="text-sm font-bold text-slate-700">Description</label>
+              <span className={`text-[11px] font-medium ${description.length > 450 ? 'text-amber-500' : 'text-slate-400'}`}>{description.length}/500</span>
+            </div>
             <textarea
               value={description}
+              maxLength={500}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full min-h-[90px] p-5 rounded-2xl border border-slate-200 bg-slate-50 outline-none transition-all text-slate-900 placeholder:text-slate-400 resize-none"
               placeholder={isFoodRescue ? 'Précise l\'état, la quantité approximative...' : 'Décris les ingrédients, les saveurs, l\'histoire du plat...'}

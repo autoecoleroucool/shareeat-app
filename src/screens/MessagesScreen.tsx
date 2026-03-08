@@ -376,12 +376,19 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
       setLoadingMoreMsgs(true);
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .select('id, sender_id, content, created_at, conversation_id')
       .eq('conversation_id', convId)
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) {
+      if (offset === 0) setLoadingMsgs(false);
+      else setLoadingMoreMsgs(false);
+      setSendError('Impossible de charger les messages. Réessaie.');
+      return;
+    }
 
     const fetched = ((data as ChatMessage[]) ?? []).reverse();
 
@@ -919,23 +926,32 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
                 </div>
               )}
               <div className="flex gap-2 items-end">
-                <input
-                  value={input}
-                  onChange={(e) => {
-                    setInput(e.target.value);
-                    if (activeConv && userIdRef.current && e.target.value.trim()) {
-                      supabase.channel(`messages:${activeConv.id}`).send({
-                        type: 'broadcast',
-                        event: 'typing',
-                        payload: { user_id: userIdRef.current },
-                      });
-                      if (localTypingTimeoutRef.current) clearTimeout(localTypingTimeoutRef.current);
-                    }
-                  }}
-                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                  placeholder="Ecrire un message..."
-                  className="flex-1 bg-[#f2f4f2] border border-slate-200 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#49e619] text-slate-900 placeholder:text-slate-400 resize-none"
-                />
+                <div className="flex-1 relative">
+                  <input
+                    value={input}
+                    onChange={(e) => {
+                      setInput(e.target.value.slice(0, 2000));
+                      if (activeConv && userIdRef.current && e.target.value.trim()) {
+                        supabase.channel(`messages:${activeConv.id}`).send({
+                          type: 'broadcast',
+                          event: 'typing',
+                          payload: { user_id: userIdRef.current },
+                        });
+                        if (localTypingTimeoutRef.current) clearTimeout(localTypingTimeoutRef.current);
+                      }
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                    placeholder="Écrire un message..."
+                    maxLength={2000}
+                    aria-label="Message"
+                    className="w-full bg-[#f2f4f2] border border-slate-200 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#49e619] text-slate-900 placeholder:text-slate-400 resize-none"
+                  />
+                  {input.length > 1800 && (
+                    <span className={`absolute bottom-1.5 right-3 text-[10px] font-semibold ${input.length >= 2000 ? 'text-red-500' : 'text-amber-500'}`}>
+                      {2000 - input.length}
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={sendMessage}
                   disabled={sending || !input.trim()}

@@ -9,6 +9,7 @@ import MealDetailModal from '../components/MealDetailModal';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import PullIndicator from '../components/PullIndicator';
 import MealCard from '../components/explore/MealCard';
+import Toast, { useToast } from '../components/Toast';
 type CategoryFilter = 'all' | 'food_rescue' | 'homemade_meal';
 
 interface ExploreScreenProps {
@@ -96,6 +97,8 @@ export default function ExploreScreen({
   const [detailMeal, setDetailMeal] = useState<Meal | null>(null);
   const [challenges, setChallenges] = useState<CulinaryChallenge[]>([]);
   const [challengesLoading, setChallengesLoading] = useState(false);
+  const [challengesError, setChallengesError] = useState(false);
+  const { toast, showToast, hideToast } = useToast();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
@@ -104,13 +107,15 @@ export default function ExploreScreen({
 
   const fetchChallenges = useCallback(async () => {
     setChallengesLoading(true);
-    const { data } = await supabase
+    setChallengesError(false);
+    const { data, error } = await supabase
       .from('culinary_challenges')
       .select('*, creator:creator_id(id, name, avatar_url, shares_count)')
       .neq('status', 'completed')
       .order('created_at', { ascending: false })
       .limit(10);
 
+    if (error) { setChallengesError(true); setChallengesLoading(false); return; }
     if (!data || data.length === 0) { setChallenges([]); setChallengesLoading(false); return; }
 
     const ids = (data as CulinaryChallenge[]).map((c) => c.id);
@@ -266,10 +271,13 @@ export default function ExploreScreen({
         else next.delete(chefId);
         return next;
       });
+      showToast('Impossible de mettre à jour les favoris.', 'error');
+    } else {
+      showToast(wasLiked ? 'Retiré des favoris.' : 'Ajouté aux favoris !', 'success');
     }
 
     pendingLikeRef.current.delete(chefId);
-  }, [currentUserId, likedIds]);
+  }, [currentUserId, likedIds, showToast]);
 
   const handleOpenDetail = useCallback((meal: Meal) => setDetailMeal(meal), []);
   const handleBookMeal = useCallback((meal: Meal) => setBookingMeal(meal), []);
@@ -305,6 +313,7 @@ export default function ExploreScreen({
 
   return (
     <div className="flex flex-col h-app bg-[#F5F5F0] font-display">
+      {toast && <Toast key={toast.id} message={toast.message} type={toast.type} onClose={hideToast} />}
       <header className="sticky top-0 z-20 bg-[#F5F5F0]/90 backdrop-blur-md px-6 pb-3" style={{ paddingTop: 'calc(env(safe-area-inset-top, 44px) + 12px)' }}>
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -322,13 +331,27 @@ export default function ExploreScreen({
           </button>
         </div>
         <div className="relative mb-3">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
+          <label htmlFor="explore-search" className="sr-only">Rechercher des repas</label>
+          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]" aria-hidden="true">search</span>
           <input
+            id="explore-search"
+            type="search"
+            role="searchbox"
+            aria-label="Rechercher des aliments ou plats"
             className="w-full bg-white border-none rounded-xl py-4 pl-12 pr-4 shadow-sm focus:ring-2 focus:ring-[#16a34a] outline-none placeholder:text-slate-400 text-slate-900"
             placeholder="Rechercher aliments, plats..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              aria-label="Effacer la recherche"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          )}
         </div>
 
         <div className="flex gap-2">
@@ -401,6 +424,14 @@ export default function ExploreScreen({
                 ? [0, 1].map((i) => (
                     <div key={i} className="shrink-0 w-52 h-28 rounded-2xl bg-slate-100 animate-pulse" />
                   ))
+                : challengesError
+                ? (
+                    <div className="shrink-0 w-full py-4 px-3 flex items-center gap-2 bg-red-50 rounded-2xl">
+                      <span className="material-symbols-outlined text-red-400 text-[16px]">error</span>
+                      <p className="text-xs text-red-500">Impossible de charger les défis.</p>
+                      <button onClick={fetchChallenges} className="text-xs font-bold text-red-600 underline ml-auto">Réessayer</button>
+                    </div>
+                  )
                 : challenges.map((c) => {
                     const statusLabel = c.status === 'open' ? 'Ouvert' : 'En cours';
                     const statusColor = c.status === 'open' ? '#16a34a' : '#d97706';

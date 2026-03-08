@@ -362,15 +362,25 @@ export default function BookingModal({ meal, hostName, hostAvatar, timing, onClo
                     </button>
                   ))}
                 </div>
-                <input
-                  type="number"
-                  min="0.5"
-                  step="0.5"
-                  placeholder="Autre montant (€)"
-                  value={customAmount}
-                  onChange={(e) => { setCustomAmount(e.target.value); setSelectedAmount(null); }}
-                  className="w-full h-11 rounded-xl border border-slate-200 px-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#49e619] transition-colors"
-                />
+                <div>
+                  <input
+                    type="number"
+                    min="0.5"
+                    max="500"
+                    step="0.5"
+                    placeholder="Autre montant (€)"
+                    value={customAmount}
+                    onChange={(e) => { setCustomAmount(e.target.value); setSelectedAmount(null); }}
+                    aria-label="Montant personnalisé"
+                    className="w-full h-11 rounded-xl border border-slate-200 px-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#49e619] transition-colors"
+                  />
+                  {customAmount && parseFloat(customAmount) > 500 && (
+                    <p className="text-xs text-red-500 mt-1">Montant maximum : 500€</p>
+                  )}
+                  {customAmount && parseFloat(customAmount) < 0.5 && parseFloat(customAmount) > 0 && (
+                    <p className="text-xs text-amber-500 mt-1">Montant minimum : 0,50€</p>
+                  )}
+                </div>
               </div>
 
               {error && <p className="text-sm text-red-500 font-medium text-center">{error}</p>}
@@ -384,7 +394,7 @@ export default function BookingModal({ meal, hostName, hostAvatar, timing, onClo
                 </button>
                 <button
                   onClick={handleDonate}
-                  disabled={loadingDonate || !donationAmount || isNaN(donationAmount) || donationAmount <= 0}
+                  disabled={loadingDonate || !donationAmount || isNaN(donationAmount) || donationAmount <= 0 || donationAmount > 500}
                   className="flex-[2] h-12 bg-[#49e619] text-slate-900 font-bold rounded-full text-sm transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                   {loadingDonate ? (

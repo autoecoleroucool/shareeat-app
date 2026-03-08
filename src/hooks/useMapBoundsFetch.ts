@@ -47,7 +47,7 @@ function boundsOverlapRatio(a: L.LatLngBounds, b: L.LatLngBounds): number {
 
 export { haversineDistance };
 
-export function useMapBoundsFetch(onMealsLoaded: (meals: MapMeal[]) => void) {
+export function useMapBoundsFetch(onMealsLoaded: (meals: MapMeal[]) => void, onError?: (err: Error) => void) {
   const cacheRef = useRef<CacheEntry[]>([]);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -83,7 +83,10 @@ export function useMapBoundsFetch(onMealsLoaded: (meals: MapMeal[]) => void) {
       .or('claimed.eq.false,claimed.is.null')
       .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString());
 
-    if (error) return;
+    if (error) {
+      onError?.(new Error(error.message));
+      return;
+    }
 
     type RawMeal = MapMeal & { host?: { shares_count?: number } | null };
     const meals: MapMeal[] = ((data as RawMeal[]) ?? [])

@@ -11,6 +11,7 @@ import XpHistoryTab from '../components/profile/XpHistoryTab';
 import NotificationsModal from '../components/NotificationsModal';
 import DonationModal from '../components/DonationModal';
 import BadgesSection from '../components/BadgesSection';
+import Toast, { useToast } from '../components/Toast';
 
 interface EditMealData {
   id: string;
@@ -223,26 +224,40 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
   const [deleteMealConfirmId, setDeleteMealConfirmId] = useState<string | null>(null);
   const [deletingMealId, setDeletingMealId] = useState<string | null>(null);
   const [noShowConfirmId, setNoShowConfirmId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [mealsPage, setMealsPage] = useState(0);
+  const [hasMoreMeals, setHasMoreMeals] = useState(false);
+  const [loadingMoreMeals, setLoadingMoreMeals] = useState(false);
+  const MEALS_PAGE_SIZE = 5;
+  const { toast, showToast, hideToast } = useToast();
 
   const loadProfile = useCallback(async () => {
+    setLoadError(false);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); setMealsLoading(false); setRecoveredLoading(false); setPendingLoading(false); return; }
     setCurrentUserId(user.id);
 
     const [profileResult, mealsResult, recoveredResult, referralResult] = await Promise.all([
       supabase.from('profiles').select('id, name, avatar_url, bio, location_name, rating, xp, meals_given, meals_taken, karma_balance, shares_count, is_premium, created_at').eq('id', user.id).maybeSingle(),
-      supabase.from('meals').select('id, title, description, image_url, created_at, slots_taken, slots_total, category, allergens, meal_date, expires_at, quantity, location_lat, location_lng, location_name').eq('host_id', user.id).order('created_at', { ascending: false }).limit(10),
+      supabase.from('meals').select('id, title, description, image_url, created_at, slots_taken, slots_total, category, allergens, meal_date, expires_at, quantity, location_lat, location_lng, location_name').eq('host_id', user.id).order('created_at', { ascending: false }).range(0, MEALS_PAGE_SIZE),
       supabase.from('meal_participants').select('meal_id, joined_at, delivered, meals(id, title, image_url, category, location_name, host_id)').eq('user_id', user.id).eq('no_show', false).order('joined_at', { ascending: false }).limit(20),
       supabase.from('referrals').select('id', { count: 'exact', head: true }).eq('referrer_id', user.id),
     ]);
 
+    if (profileResult.error || mealsResult.error) {
+      setLoadError(true);
+    }
     if (profileResult.data) setProfile(profileResult.data as Profile);
     setReferralCount(referralResult.count ?? 0);
     setLoading(false);
 
     const hostMealIds = mealsResult.data?.map((m: { id: string }) => m.id) ?? [];
 
-    if (mealsResult.data) setSharedMeals(mealsResult.data as SharedMeal[]);
+    if (mealsResult.data) {
+      setSharedMeals(mealsResult.data as SharedMeal[]);
+      setHasMoreMeals(mealsResult.data.length > MEALS_PAGE_SIZE);
+      setMealsPage(0);
+    }
     setMealsLoading(false);
 
     if (recoveredResult.data) setRecoveredMeals(recoveredResult.data as unknown as RecoveredMeal[]);
@@ -263,6 +278,25 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
   }, []);
 
   useEffect(() => { loadProfile(); }, [loadProfile]);
+
+  const loadMoreMeals = useCallback(async () => {
+    if (loadingMoreMeals || !hasMoreMeals || !currentUserId) return;
+    setLoadingMoreMeals(true);
+    const nextPage = mealsPage + 1;
+    const from = nextPage * MEALS_PAGE_SIZE + nextPage;
+    const { data } = await supabase
+      .from('meals')
+      .select('id, title, description, image_url, created_at, slots_taken, slots_total, category, allergens, meal_date, expires_at, quantity, location_lat, location_lng, location_name')
+      .eq('host_id', currentUserId)
+      .order('created_at', { ascending: false })
+      .range(from, from + MEALS_PAGE_SIZE);
+    if (data) {
+      setSharedMeals((prev) => [...prev, ...(data as SharedMeal[])]);
+      setHasMoreMeals(data.length > MEALS_PAGE_SIZE);
+      setMealsPage(nextPage);
+    }
+    setLoadingMoreMeals(false);
+  }, [loadingMoreMeals, hasMoreMeals, currentUserId, mealsPage, MEALS_PAGE_SIZE]);
 
   const { containerRef: profileScrollRef, indicatorRef: profileIndicatorRef } = usePullToRefresh(loadProfile);
 
@@ -357,11 +391,16 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
   async function blockUser(booking: PendingBooking) {
     if (!currentUserId) return;
     setBlockingUserId(booking.user_id);
-    await supabase.from('blocked_users').upsert({
+    const { error } = await supabase.from('blocked_users').upsert({
       blocker_id: currentUserId,
       blocked_id: booking.user_id,
     }, { onConflict: 'blocker_id,blocked_id' });
-    await markNoShow(booking);
+    if (error) {
+      showToast('Impossible de bloquer cet utilisateur.', 'error');
+    } else {
+      await markNoShow(booking);
+      showToast('Utilisateur bloqué avec succès.', 'success');
+    }
     setBlockConfirmId(null);
     setBlockingUserId(null);
   }
@@ -369,22 +408,32 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
   async function deleteMeal(mealId: string) {
     if (!currentUserId) return;
     setDeletingMealId(mealId);
-    const { data: result } = await supabase.rpc('delete_meal', {
+    const { data: result, error } = await supabase.rpc('delete_meal', {
       p_meal_id: mealId,
       p_host_id: currentUserId,
     });
     setDeletingMealId(null);
     setDeleteMealConfirmId(null);
-    if (result === 'ok' || result === 'not_found') {
+    if (error) {
+      showToast('Impossible de supprimer ce repas.', 'error');
+    } else if (result === 'ok' || result === 'not_found') {
       setSharedMeals((prev) => prev.filter((m) => m.id !== mealId));
       setPendingBookings((prev) => prev.filter((b) => b.meal_id !== mealId));
+      showToast('Repas supprimé.', 'success');
     }
   }
 
   return (
     <div className="flex flex-col h-app bg-[#f6f8f6] font-display">
+      {toast && <Toast key={toast.id} message={toast.message} type={toast.type} onClose={hideToast} />}
       <main ref={(el) => { profileScrollRef.current = el; }} className="flex-1 overflow-y-auto hide-scrollbar pb-24 relative">
         <PullIndicator ref={profileIndicatorRef} />
+        {loadError && (
+          <div className="mx-4 mt-4 bg-red-50 border border-red-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+            <span className="material-symbols-outlined text-red-400 text-[18px] shrink-0">error</span>
+            <p className="text-sm text-red-600 flex-1">Erreur de chargement. Tire vers le bas pour réessayer.</p>
+          </div>
+        )}
 
         <div className="bg-white px-6 pb-7 relative" style={{ paddingTop: 'calc(env(safe-area-inset-top, 44px) + 14px)' }}>
           <div className="flex items-start gap-4">
@@ -763,7 +812,7 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3" role="list" aria-label="Mes annonces partagées">
               {sharedMeals.map((meal) => {
                 const isFoodRescue = meal.category === 'food_rescue';
                 const categoryColor = isFoodRescue ? '#16a34a' : '#f97316';
@@ -859,6 +908,22 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
                   </div>
                 );
               })}
+              {hasMoreMeals && (
+                <button
+                  onClick={loadMoreMeals}
+                  disabled={loadingMoreMeals}
+                  className="w-full py-3 rounded-2xl border border-slate-200 text-slate-600 text-sm font-semibold flex items-center justify-center gap-2 active:scale-95 transition-all hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {loadingMoreMeals ? (
+                    <span className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[16px]">expand_more</span>
+                      Voir plus
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           )}
         </div>

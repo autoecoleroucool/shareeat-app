@@ -149,6 +149,8 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
   const [challenges, setChallenges] = useState<CulinaryChallenge[]>([]);
   const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
   const challengeMarkersRef = useRef<Map<string, L.Marker>>(new Map());
+  const [fetchError, setFetchError] = useState(false);
+  const [mapLoading, setMapLoading] = useState(true);
 
   const fetchChallenges = useCallback(async () => {
     const { data } = await supabase
@@ -187,10 +189,16 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
 
   const handleMealsLoaded = useCallback((newMeals: MapMeal[]) => {
     if (!mountedRef.current) return;
+    setFetchError(false);
     setMeals(newMeals);
   }, []);
 
-  const { scheduleFetch, invalidateCache } = useMapBoundsFetch(handleMealsLoaded);
+  const handleFetchError = useCallback(() => {
+    if (!mountedRef.current) return;
+    setFetchError(true);
+  }, []);
+
+  const { scheduleFetch, invalidateCache } = useMapBoundsFetch(handleMealsLoaded, handleFetchError);
   const scheduleFetchRef = useRef(scheduleFetch);
   useEffect(() => { scheduleFetchRef.current = scheduleFetch; }, [scheduleFetch]);
 
@@ -247,6 +255,10 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
       } else {
         initMap(PARIS);
       }
+      setMapLoading(false);
+    }).catch(() => {
+      initMap(PARIS);
+      setMapLoading(false);
     });
 
     return () => {
@@ -451,6 +463,32 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
         ref={mapDivRef}
         style={{ position: 'absolute', inset: 0, bottom: BOTTOM_NAV_HEIGHT, zIndex: 1, touchAction: 'none', overscrollBehavior: 'none' }}
       />
+      {mapLoading && (
+        <div style={{
+          position: 'absolute', inset: 0, bottom: BOTTOM_NAV_HEIGHT, zIndex: 900,
+          background: 'rgba(232,224,216,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12,
+        }}>
+          <div style={{ width: 36, height: 36, border: '3px solid rgba(22,163,74,0.2)', borderTopColor: '#16a34a', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#374151', fontFamily: 'inherit' }}>Localisation en cours...</p>
+        </div>
+      )}
+      {fetchError && (
+        <div style={{
+          position: 'absolute', top: 'calc(var(--sat, 0px) + 68px)', left: 12, right: 12, zIndex: 1000,
+          background: 'rgba(254,242,242,0.95)', borderRadius: 14, padding: '10px 14px',
+          display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #fca5a5',
+          backdropFilter: 'blur(8px)',
+        }}>
+          <span className="material-symbols-outlined" style={{ color: '#ef4444', fontSize: 16 }}>wifi_off</span>
+          <p style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#ef4444', fontFamily: 'inherit' }}>Impossible de charger les repas</p>
+          <button
+            onClick={() => { setFetchError(false); invalidateCache(); triggerFetchForCurrentBounds(true); }}
+            style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', fontFamily: 'inherit', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            Réessayer
+          </button>
+        </div>
+      )}
 
       <div style={{
         position: 'absolute', top: 'calc(var(--sat, 0px) + 16px)', left: 12, right: 12, zIndex: 1000,
@@ -543,6 +581,7 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
         onClick={handleLocate}
         disabled={locating}
         title="Ma position"
+        aria-label="Centrer sur ma position"
         style={{
           position: 'absolute', top: 'calc(var(--sat, 0px) + 118px)', left: 12, zIndex: 1000,
           width: 40, height: 40, background: 'white',
