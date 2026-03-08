@@ -7,6 +7,7 @@ import {
   isExpiringSoon,
   formatMealTiming,
 } from '../../lib/mealUtils';
+import { resizeAvatar, resizeMealImage } from '../../lib/supabase';
 
 const FALLBACK_AVATAR = 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?w=60';
 
@@ -38,7 +39,7 @@ const MealCard = memo(function MealCard({
   const spotsLeft = meal.slots_total - meal.slots_taken;
   const timing = formatMealTiming(meal.meal_date);
   const hostName = meal.host?.name || 'Utilisateur';
-  const hostAvatar = meal.host?.avatar_url || FALLBACK_AVATAR;
+  const hostAvatar = resizeAvatar(meal.host?.avatar_url, 60) || FALLBACK_AVATAR;
   const isOwnMeal = meal.host_id === currentUserId;
   const expiringSoon = isFoodRescue && isExpiringSoon(mealWithExtra.expires_at);
 
@@ -138,7 +139,7 @@ const MealCard = memo(function MealCard({
     >
       <div className="relative h-48 w-full">
         <img
-          src={meal.image_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'}
+          src={resizeMealImage(meal.image_url) || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'}
           alt={meal.title}
           className="w-full h-full object-cover"
           loading="lazy"

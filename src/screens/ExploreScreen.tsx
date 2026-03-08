@@ -116,9 +116,10 @@ export default function ExploreScreen({
     const ids = (data as CulinaryChallenge[]).map((c) => c.id);
     const { data: membersData } = await supabase
       .from('culinary_challenge_members')
-      .select('challenge_id, status')
+      .select('challenge_id')
       .in('challenge_id', ids)
-      .eq('status', 'accepted');
+      .eq('status', 'accepted')
+      .limit(1000);
 
     const countMap: Record<string, number> = {};
     (membersData ?? []).forEach((m: { challenge_id: string }) => {
@@ -137,7 +138,8 @@ export default function ExploreScreen({
       .or('claimed.eq.false,claimed.is.null')
       .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
       .neq('meal_type', 'culinary_circle')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(100);
     if (error) { setLoadError(true); return; }
     if (data) setMeals((data as Meal[]).filter((m) => m.slots_taken < m.slots_total));
   }, []);

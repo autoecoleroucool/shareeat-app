@@ -1,6 +1,6 @@
 import { useState, useEffect, memo } from 'react';
 import { Meal } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, resizeMealImage, resizeAvatar } from '../lib/supabase';
 import { formatExpiry } from '../lib/mealUtils';
 
 const REVIEWS_PAGE_SIZE = 3;
@@ -141,7 +141,7 @@ const MealDetailModal = memo(function MealDetailModal({
             </div>
           ) : (
             <img
-              src={meal.image_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'}
+              src={resizeMealImage(meal.image_url) || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg'}
               alt={meal.title}
               className="w-full h-full object-cover"
             />
@@ -195,7 +195,7 @@ const MealDetailModal = memo(function MealDetailModal({
             {meal.host && (
               <div className="flex items-center gap-3 bg-slate-50 rounded-2xl p-3">
                 {meal.host.avatar_url ? (
-                  <img src={meal.host.avatar_url} alt={meal.host.name} className="w-10 h-10 rounded-full object-cover" loading="lazy" decoding="async" />
+                  <img src={resizeAvatar(meal.host.avatar_url, 80) ?? ''} alt={meal.host.name} className="w-10 h-10 rounded-full object-cover" loading="lazy" decoding="async" />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
                     <span className="material-symbols-outlined text-slate-400 text-[20px]">person</span>
@@ -320,7 +320,7 @@ const MealDetailModal = memo(function MealDetailModal({
                     <div key={rev.id} className="bg-slate-50 rounded-2xl p-3">
                       <div className="flex items-center gap-2 mb-1.5">
                         {rev.reviewer?.avatar_url ? (
-                          <img src={rev.reviewer.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" loading="lazy" decoding="async" />
+                          <img src={resizeAvatar(rev.reviewer.avatar_url, 56) ?? ''} alt="" className="w-7 h-7 rounded-full object-cover" loading="lazy" decoding="async" />
                         ) : (
                           <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center">
                             <span className="text-[11px] font-bold text-slate-500">

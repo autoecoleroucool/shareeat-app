@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Screen } from '../types';
 import BottomNav from '../components/BottomNav';
-import { supabase } from '../lib/supabase';
+import { supabase, resizeAvatar } from '../lib/supabase';
 import EditProfileModal from '../components/settings/EditProfileModal';
 import ReviewModal from '../components/ReviewModal';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -255,7 +255,8 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
         .in('meal_id', hostMealIds)
         .eq('delivered', false)
         .eq('no_show', false)
-        .order('joined_at', { ascending: false });
+        .order('joined_at', { ascending: false })
+        .limit(200);
       if (bookingsData) setPendingBookings(bookingsData as unknown as PendingBooking[]);
     }
     setPendingLoading(false);
@@ -390,7 +391,7 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
             <div className="relative">
               <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-[#49e619]/30">
                 {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                  <img src={resizeAvatar(profile.avatar_url, 192) ?? ''} alt="Profile" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                 ) : (
                   <div className="w-full h-full bg-slate-200 flex items-center justify-center">
                     <span className="material-symbols-outlined text-slate-400 text-[40px]">person</span>
@@ -626,7 +627,7 @@ export default function ProfileScreen({ activeScreen, onNavigate, unreadBookings
                       <div className="flex items-center gap-3 mb-3">
                         <div className="relative shrink-0">
                           {guest.avatar_url ? (
-                            <img src={guest.avatar_url} alt={guest.name} className="w-10 h-10 rounded-full object-cover" loading="lazy" decoding="async" />
+                            <img src={resizeAvatar(guest.avatar_url, 80) ?? ''} alt={guest.name} className="w-10 h-10 rounded-full object-cover" loading="lazy" decoding="async" />
                           ) : (
                             <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
                               <span className="material-symbols-outlined text-slate-400 text-[20px]">person</span>

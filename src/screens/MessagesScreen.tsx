@@ -130,7 +130,8 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
         meal:meals(title)
       `)
       .or(`host_id.eq.${uid},guest_id.eq.${uid}`)
-      .order('last_message_at', { ascending: false });
+      .order('last_message_at', { ascending: false })
+      .limit(100);
 
     if (!data) { setLoadingConvs(false); return; }
 
@@ -304,7 +305,7 @@ export default function MessagesScreen({ activeScreen, onNavigate, unreadBooking
     const convId = activeConv.id;
     setOtherTyping(false);
 
-    const channelName = `messages:${convId}:${Date.now()}`;
+    const channelName = `messages:${convId}`;
     const msgSub = supabase
       .channel(channelName)
       .on('broadcast', { event: 'typing' }, (payload) => {

@@ -163,7 +163,8 @@ export default function MapScreen({ activeScreen, onNavigate, unreadBookings = 0
       .from('culinary_challenge_members')
       .select('challenge_id')
       .in('challenge_id', ids)
-      .eq('status', 'accepted');
+      .eq('status', 'accepted')
+      .limit(1000);
     const countMap: Record<string, number> = {};
     (membersData ?? []).forEach((m: { challenge_id: string }) => {
       countMap[m.challenge_id] = (countMap[m.challenge_id] ?? 0) + 1;
